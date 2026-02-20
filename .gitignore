@@ -1,0 +1,19 @@
+# MATLAB Autosave files
+*.asv
+*.m~
+
+# Compiled MEX binaries
+*.mex*
+*.mexmaci64
+*.mexw64
+*.mexa64
+
+# Simulink generated files and cache
+slprj/
+*.slxc
+
+# Data files (Highly recommended so you don't upload giant datasets)
+*.mat
+
+# Core files (Crash logs)
+core
