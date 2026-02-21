@@ -23,7 +23,8 @@ numRx = numel(rxSamplingArray);
 % :(
 %fileName = 'efield_progress.mat';
 fileName = 'power_progress.mat';
-resultFolder = 'D:\MA_Investigation of the influence of distributed MIMO on exposure in an urban environment\MATLAB Simulation\Results';
+% resultFolder = 'D:\MA_Investigation of the influence of distributed MIMO on exposure in an urban environment\MATLAB Simulation\Results';
+resultFolder = 'C:\Users\chris\OneDrive - Students RWTH Aachen University\RWTH\Master Thesis\Results';
 
 % Build the full path
 saveFile = fullfile(resultFolder, fileName);

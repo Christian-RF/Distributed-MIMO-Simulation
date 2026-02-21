@@ -16,7 +16,7 @@ if measureRx == 0
     % Full Map Overview
     fprintf('Mode: Full Map Overview selected...\n');
 
-    gridSpacing = 1; % Try 1 meter like Tam (averaged) maybe with Lambda/2 directly around UE (m)
+    gridSpacing = 2; % Try 1 meter like Tam (averaged) maybe with Lambda/2 directly around UE (m)
 
     % Read Bounds directly from the XML Header
     xDoc = xmlread(osmFile);

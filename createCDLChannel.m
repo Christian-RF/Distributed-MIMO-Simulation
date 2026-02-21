@@ -1,4 +1,4 @@
-function channel = createCDLChannel(rays, fc, tx, rx, UEOrientation, chFilter, numRB, SCS, false)
+function channel = createCDLChannel(rays, fc, tx, rx, UEOrientation, chFilter, numRB, SCS)
 %CREATECDLCHANNEL Creates a nrCDchannel object after 3GPP TR 38.901 based on
 % raytracing. Based on this example
 
@@ -18,6 +18,9 @@ channel.DelayProfile = 'Custom'; % Set to 'costum' to specify path delays
 channel.PathDelays = pathToAs; % Time of Arrivals
 channel.AveragePathGains = avgPathGains; % Path Gains
 
+
+channel.AngleSpreads = [5 11 3 7]; % ????? WHy TR 38.901 Section 7.7.5.1 to add diffuse scattering
+
 % Set departure and arrival angles to work from channel (zenith) to rays
 % (elevation)
 channel.AnglesAoD = pathAoDs(1, :); % azimuth of departure (AoD)
@@ -29,13 +32,12 @@ channel.HasLOSCluster = isLOS;
 
 channel.CarrierFrequency = fc;
 
-channel.NormalizeChannelOutputs = false; % do not normalize by the number of receive antennas, this would change the receive power
+channel.NormalizeChannelOutputs = true; % do not normalize by the number of receive antennas, this would change the receive power
 channel.NormalizePathGains = false; % set to false to retain the path gains
 
 % Set channel Tx and Rx antenna arrays
 % Convert elevation which is used by the rays to zenith (-1) used by the
 % channel -> (-1)
-channel.AnglesZoA = 90 - pathAoAs(2, :);    % channel uses zenith angle, rays use elevation
 channel.ReceiveAntennaArray = rx.Antenna;
 channel.ReceiveArrayOrientation = [UEOrientation(1); -1 * UEOrientation(2); UEOrientation(3)];  % (-1) converts elevation to downtilt
 

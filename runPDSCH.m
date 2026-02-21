@@ -19,7 +19,7 @@ DisplaySimulationInformation = true;
 % Instead of prod(channelObj.TransmitAntennaArray.Size) takes polarization
 % into account
 
-% % Calculate the number of spatial positions (geometry)
+% Calculate the number of spatial positions (geometry)
 numSpatial = prod(channelObj.TransmitAntennaArray.Size);
 
 % Calculate the number of polarizations (based on your ElementSet)
@@ -29,7 +29,7 @@ numPol = numel(channelObj.TransmitAntennaArray.ElementSet);
 NumTxAnts = numSpatial * numPol; % This will yield 128
 
 % NumTxAnts = prod(channelObj.TransmitAntennaArray.Size);
-NumRxAnts = prod(channelObj.ReceiveAntennaArray.Size);
+% NumRxAnts = prod(channelObj.ReceiveAntennaArray.Size);
 
 % Set waveform type
 carrier = nrCarrierConfig; % Creates 5G NR carrier configuration object
@@ -97,7 +97,7 @@ pdsch.ReservedPRB{1}.Period = []; % Periodicity of reserved resources
 
 %% Additional simulation and DL-SCH related parameters
 % PDSCH PRB bundling (TS 38.214 Section 5.1.2.3)
-pdschExtension.PRGBundleSize = 2; % 2, 4, or [] to signify "wideband"
+pdschExtension.PRGBundleSize = []; % 2, 4, or [] to signify "wideband"
 
 % HARQ process and rate matching/TBS parameters
 pdschExtension.XOverhead = 6 * pdsch.EnablePTRS; % Set PDSCH rate matching overhead for TBS (Xoh) to 6 when PT-RS is enabled, otherwise 0
@@ -202,6 +202,11 @@ SNR_linear = 10^(SNRdB/10);
 
 % Loop over the entire waveform length
 % NSlots depends on numFrames
+
+%estChannelGridAnts = getInitialChannelEstimate(carrier, channelObj, DataType, maxChDelay);
+%weightsTx = hSVDPrecoders(carrier, pdsch, estChannelGridAnts, pdschExtension.PRGBundleSize);
+
+
 for nslot = 0:NSlots-1
 
     fprintf("Progress: Slot %d from %d \n", nslot, NSlots)
@@ -268,19 +273,32 @@ for nslot = 0:NSlots-1
     % [rxWaveform, ofdmResponse, timingOffset] = channelObj(txWaveform);
     % Add AWGN to the received time domain waveform
 
-    sigPower = mean(abs(rxWaveform(:)).^2);
-    %%% 2) Noise-Power = signalPower / SNR
-    noisePower = sigPower / SNR_linear;
-    %%% 3) sqrt(NoisePower/2) => da komplexes AWGN (I + Q)
-    noiseStd = sqrt(noisePower/2);
-    %%% 4) Erzeuge das AWGN
-    noise = noiseStd * (randn(size(rxWaveform)) + 1i*randn(size(rxWaveform)));
-    %%% 5) Addiere auf das empfangene Signal
-    rxWaveform = rxWaveform + noise;
+    % sigPower = mean(abs(rxWaveform(:)).^2);
+    % %%% 2) Noise-Power = signalPower / SNR
+    % noisePower = sigPower / SNR_linear;
+    % %%% 3) sqrt(NoisePower/2) => da komplexes AWGN (I + Q)
+    % noiseStd = sqrt(noisePower/2);
+    % %%% 4) Erzeuge das AWGN
+    % noise = noiseStd * (randn(size(rxWaveform)) + 1i*randn(size(rxWaveform)));
+    %
+    %
+    %
+    % %%% 5) Addiere auf das empfangene Signal
+    % rxWaveform = rxWaveform + noise;
     % Why not these? Not imaginary?
     % noise = N0 * (randn(size(rxWaveform)) + 1i*randn(size(rxWaveform)));
-    % 
+    %
     % rxWaveform = rxWaveform + noise;
+
+    rxSig = rxWaveform(1:end-maxChDelay, :);
+    sigPower = mean(abs(rxSig(:)).^2);
+
+    % Noise power relative to actual received signal
+    noisePower = sigPower / SNR_linear;
+
+    % For REAL-valued noise (matching the reference example convention):
+    noise = sqrt(noisePower) * randn(size(rxWaveform), 'like', rxWaveform);
+    rxWaveform = rxWaveform + noise;
 
 
     % Practical synchronization. Correlate the received waveform
@@ -328,6 +346,19 @@ for nslot = 0:NSlots-1
     % Remove precoding from estChannelGridPorts to get channel
     % estimate w.r.t. antennas
     estChannelGridAnts = precodeChannelEstimate(carrier, estChannelGridPorts, conj(weightsTx)); % Why transpose?
+
+    % Diagnostic: check channel spatial condition
+    H_mid = squeeze(estChannelGridAnts(round(size(estChannelGridAnts,1)/2), 1, :, :));
+    fprintf('H_mid size: %s\n', mat2str(size(H_mid)));
+    if ismatrix(H_mid)
+        sv = svd(H_mid);
+        fprintf('Singular values: ');
+        fprintf('%.6f  ', sv);
+        fprintf('\nCondition (sv1/sv_end): %.1f\n', sv(1)/sv(end));
+    end
+
+
+
 
     % Equalization
     % Look how the csi is derived!
@@ -400,8 +431,8 @@ for nslot = 0:NSlots-1
     end
 
     % % Get precoding matrix for next slot
-    % % % newWtx = hSVDPrecoders(carrier, pdsch, estChannelGridAnts, pdschextra.PRGBundleSize);
-    % % % weightsTx = newWtx;
+    newWtx = hSVDPrecoders(carrier, pdsch, estChannelGridAnts, pdschextra.PRGBundleSize);
+    weightsTx = newWtx;
 
 
 

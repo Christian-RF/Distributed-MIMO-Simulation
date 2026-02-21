@@ -1,43 +1,27 @@
-function plotSitePatterns(txSuperCAntenna, txAcademicaAntenna, weightsSuperC, weightsAcademica, fc)
-% PLOTSITEPATTERNS Plots Azimuth/Elevation cuts for 4 beams per site.
-% Generates 2 Figures: one for SuperC, one for Academica.
-% Each figure has a 2x4 layout (Top row: Azimuth, Bottom row: Elevation).
+function plotSitePatterns(tx, weightsPerBS, fc)
+% PLOTSITEPATTERNS Plots Azimuth/Elevation cuts for each beam per BS.
 
-% Fig 1: SuperC
-figure('Name', 'SuperC Beamforming Patterns', 'Color', 'w', 'Position', [100, 100, 1200, 600]);
-sgtitle('SuperC Tx Site: Beamforming Patterns (Beams 1-4)');
+numBS = numel(tx);
+numLayers = size(weightsPerBS{1}, 2);
 
-for i = 1:4
-    % Update Taper for the current beam index
-    txSuperCAntenna.Taper = weightsSuperC(:, i);
-
-    % Top Row: Azimuth Cut
-    subplot(2, 4, i);
-    patternAzimuth(txSuperCAntenna, fc);
-    title(['Beam ' num2str(i) ' Azimuth']);
-
-    % Bottom Row: Elevation Cut
-    subplot(2, 4, i + 4);
-    patternElevation(txSuperCAntenna, fc);
-    title(['Beam ' num2str(i) ' Elevation']);
-end
-
-% Fig 2: Academica
-figure('Name', 'Academica Beamforming Patterns', 'Color', 'w', 'Position', [150, 150, 1200, 600]);
-sgtitle('Academica Tx Site: Beamforming Patterns (Beams 1-4)');
-
-for i = 1:4
-    % Update Taper for the current beam index
-    txAcademicaAntenna.Taper = weightsAcademica(:, i);
-
-    % Top Row: Azimuth Cut
-    subplot(2, 4, i);
-    patternAzimuth(txAcademicaAntenna, fc);
-    title(['Beam ' num2str(i) ' Azimuth']);
-
-    % Bottom Row: Elevation Cut
-    subplot(2, 4, i + 4);
-    patternElevation(txAcademicaAntenna, fc);
-    title(['Beam ' num2str(i) ' Elevation']);
+for b = 1:numBS
+    figure('Name', sprintf('BS%d Beamforming Patterns', b), ...
+           'Color', 'w', 'Position', [100+50*b, 100+50*b, 1200, 600]);
+    sgtitle(sprintf('BS%d Tx Site: Beamforming Patterns (Beams 1-%d)', b, numLayers));
+    
+    for i = 1:numLayers
+        % Set taper for current beam
+        tx(b).Antenna.Taper = weightsPerBS{b}(:, i);
+        
+        % Top Row: Azimuth Cut
+        subplot(2, numLayers, i);
+        patternAzimuth(tx(b).Antenna, fc);
+        title(sprintf('Beam %d Azimuth', i));
+        
+        % Bottom Row: Elevation Cut
+        subplot(2, numLayers, i + numLayers);
+        patternElevation(tx(b).Antenna, fc);
+        title(sprintf('Beam %d Elevation', i));
+    end
 end
 end

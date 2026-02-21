@@ -1,54 +1,35 @@
-function [channelData, hEstCollective] = setupDistributedChannels(rays, tx, rx, fc, UEOrientation, numRB, SCS, numSlot, enableDMIMO)
+function [channelData, hEstCollective] = setupDistributedChannels(rays, tx, rx, fc, UEOrientation, numRB, SCS, numSlot)
 %SETUPDISTRIBUTEDCHANNELS Sets up CDL channels and calculates perfect estimates
 %   Returns a struct containing channel objects and a concatenated estimate matrix.
 
 fprintf('Setup CDL channels from Tx to Rx and do perfect channel estimation... \n');
 
-% Setup names and loop targets
-if enableDMIMO == 1
-    channelNames = ["channelSuperC", "channelAcademica"];
-else
-    channelNames = "channelSuperC";
-end
+% Normalize rays to always be a cell array where rays{i} contains ray objects for BS i
+% Single BS: raytrace returns {[ray objects]} -> already correct
+% Two BS: raytrace returns {[ray objects BS1]; [ray objects BS2]} -> already correct
+numBS = numel(rays);
 
 channelData = struct();
-hEstList = {}; % Temporary storage for concatenation
+hEstList = {};
+
 
 % Loop through each distributed transmitter
-for i = 1:numel(channelNames)
-    currentName = channelNames(i);
+for i = 1:numBS
 
-    % Select specific rays and Tx for this link
-    if enableDMIMO == 1
-        currentRays = rays(i);
-        currentTx = tx(i);
-    else
-        currentRays = rays;
-        currentTx = tx;
-    end
+    % rays{i} is always the ray objects for BS i
+    % Wrap in cell for createCDLChannel which expects rays{1}
+    currentRays = rays(i);
+    currentTx = tx(i);
 
-    % Create Channel Object
-    % Channel filter = 0 initially just to get path gains
     chFilter = 0;
-    tmpChannel = createCDLChannel(currentRays, fc, currentTx, rx, UEOrientation, chFilter, numRB, SCS, false);
+    %% Try with antennas provided in channel not from ray tracing
+    tmpChannel = createCDLChannel(currentRays, fc, currentTx, rx, UEOrientation, chFilter, numRB, SCS);
+    % tmpChannel = createCDLChannel2(currentRays, fc, currentTx, rx, UEOrientation, chFilter, numRB, SCS);
 
-    % Get Path Gains (Snapshot for estimation)
     [pathGains, sampleTimes] = tmpChannel();
 
-    % Perfect Timing Estimation
     pathFilters = getPathFilters(tmpChannel);
-    [offset, mag] = nrPerfectTimingEstimate(pathGains, pathFilters);
-
-    % Plot the mag of the CIR and the timing offset estimate
-    % [Nh,Nr] = size(mag);
-    % plot(0:(Nh-1),mag,'o:');
-    % hold on;
-    % plot([offset offset],[0 max(mag(:))*1.25],'k:','LineWidth',2);
-    % axis([0 Nh-1 0 max(mag(:))*1.25]);
-    % legends = "|h|, antenna " + num2cell(1:Nr);
-    % legend([legends "Timing offset estimate"]);
-    % ylabel('|h|');
-    % xlabel('Channel Impulse Response Samples');
+    [offset, ~] = nrPerfectTimingEstimate(pathGains, pathFilters);
 
     % Perfect Channel Estimation
     % hEst dimensions: [Subcarriers, Symbols, RxAnt, TxAnt]
@@ -66,14 +47,25 @@ for i = 1:numel(channelNames)
     % N_T is the number of transmit antennas
     hEstimation = nrPerfectChannelEstimate(pathGains, pathFilters, numRB, SCS, numSlot, offset, sampleTimes);
 
-    % Store Data
-    channelData.(currentName).Channel = tmpChannel; % Save object for later PDSCH tx
-    channelData.(currentName).PathGains = pathGains;
-    channelData.(currentName).hEst = hEstimation;
-    channelData.(currentName).TimingOffset = offset;
+    % Use generic naming: BS1, BS2, ... not names
+    bsName = "BS" + i;
+    channelData.(bsName).Channel = tmpChannel;
+    channelData.(bsName).PathGains = pathGains;
+    channelData.(bsName).hEst = hEstimation;
+    channelData.(bsName).TimingOffset = offset;
 
-    % Store for concatenation
     hEstList{end+1} = hEstimation;
+
+    % Plot the mag of the CIR and the timing offset estimate
+    % [Nh,Nr] = size(mag);
+    % plot(0:(Nh-1),mag,'o:');
+    % hold on;
+    % plot([offset offset],[0 max(mag(:))*1.25],'k:','LineWidth',2);
+    % axis([0 Nh-1 0 max(mag(:))*1.25]);
+    % legends = "|h|, antenna " + num2cell(1:Nr);
+    % legend([legends "Timing offset estimate"]);
+    % ylabel('|h|');
+    % xlabel('Channel Impulse Response Samples');
 end
 
 % Concatenate for Beamforming
