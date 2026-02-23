@@ -19,7 +19,7 @@ channel.PathDelays = pathToAs; % Time of Arrivals
 channel.AveragePathGains = avgPathGains; % Path Gains
 
 
-channel.AngleSpreads = [5 11 3 7]; % ????? WHy TR 38.901 Section 7.7.5.1 to add diffuse scattering
+channel.AngleSpreads = [10 22 3 7]; % ????? WHy TR 38.901 Section 7.7.5.1 to add diffuse scattering CDL-A [5 11 3 7] or CDL-B [10 22 3 7] 
 
 % Set departure and arrival angles to work from channel (zenith) to rays
 % (elevation)

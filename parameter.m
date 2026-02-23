@@ -65,28 +65,33 @@ Mg = 1;
 Ng = 1;
 
 % % Similar to the default NRRect
-txArray = phased.NRRectangularPanelArray( ... 
-    'ElementSet', {elMinus45, elPlus45}, ...   % Assign the cross-pol pair
-    'Size', [M, N, Mg, Ng], ...                  % 8x8 Array, 1 Panel
-    'Spacing', [0.5, 0.5, 1, 1] * lambda'); % standard spacing 
+% txArray = phased.NRRectangularPanelArray( ... 
+%     'ElementSet', {elMinus45, elPlus45}, ...   % Assign the cross-pol pair
+%     'Size', [M, N, Mg, Ng], ...                  % 8x8 Array, 1 Panel
+%     'Spacing', [0.5, 0.5, 1, 1] * lambda'); % standard spacing 
+% 
+% txArrayExposure = phased.NRRectangularPanelArray( ...
+%     'ElementSet', {element}, ...   % single unpolarized NRAntennaElement
+%     'Size', [M, N, Mg, Ng], ...
+%     'Spacing', [0.5, 0.5, 1, 1] * lambda);
 
 % % Visualization to Verify
 % figure;
 % viewArray(txArray, 'ShowIndex', 'All');
 
-% txArray = phased.NRRectangularPanelArray( ... 
-%     'ElementSet', {element}, ... % Single element for ray tracing
-%     'Size', [M, N, Mg, Ng], ...  % 8x8 Array, 1 Panel
-%     'Spacing', [0.5, 0.5, 1, 1] * lambda);
+txArray = phased.NRRectangularPanelArray( ... 
+    'ElementSet', {element}, ... % Single element for ray tracing
+    'Size', [M, N, Mg, Ng], ...  % 8x8 Array, 1 Panel
+    'Spacing', [0.5, 0.5, 1, 1] * lambda);
 
 %% Rx Antenna parameter
 
 % rxArraySize = [2 2]; % Size of UE array with 2x2 elements, typical smartphone with 4 antennas [2 2]
-% 
-% ueIsotropic = phased.IsotropicAntennaElement(FrequencyRange = [3.3e9 3.8e9]); % Creates a Isotrpic antenna for n78 band
-% 
-% % ueIsotropic = phased.CustomAntennaElement(FrequencyVector = [3.3e9 3.8e9]);
-% % ueIsotropic.SpecifyPolarizationPattern = true;
+% % 
+% % ueIsotropic = phased.IsotropicAntennaElement(FrequencyRange = [3.3e9 3.8e9]); % Creates a Isotrpic antenna for n78 band
+% % 
+% ueIsotropic = phased.CustomAntennaElement(FrequencyVector = [3.3e9 3.8e9]);
+% ueIsotropic.SpecifyPolarizationPattern = true;
 % rxArray = phased.URA(rxArraySize, ...
 %     'Element',ueIsotropic,...
 %     'ElementSpacing',[0.5 0.5] * lambda);
@@ -111,7 +116,7 @@ txArray = phased.NRRectangularPanelArray( ...
 %     'Size', [2, 2, 1, 1], ...
 %     'Spacing', [0.5, 0.5, 1, 1] * lambda);
 
-rxArray = phased.URA([4 2], ...
+rxArray = phased.URA([2 2], ...
     'Element', phased.IsotropicAntennaElement('FrequencyRange', [3.3e9 3.8e9]), ...
     'ElementSpacing', [0.5 0.5] * lambda);
 
@@ -176,7 +181,7 @@ numRB = 245; % number of resource blocks for 90 MHz bandwidth, takes Guardbands 
 numSubcarrier = numRB * 12; % 2940 Subcarriers
 guardBand = 885e3; % TS 38.521-1 T5.3.3.-1 (BW*numRB*SCS*12)/2 -SCS/2
 
-numLayers = 1; % Number of data streams (layers) later upto 4?
+numLayers = 4; % Number of data streams (layers) later upto 4?
 scOffset = 0; % Subcarrier offset index -> use all subcarriers
 
 numFrames = 10; % Number of Frames/Slots  10

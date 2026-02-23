@@ -33,6 +33,13 @@ H = permute(mean(reshape(hEstimation, [], R, P)), [2 3 1]); % Rx-Tx 4x128 Antenn
 % V = 128x128 (Tx Tx) matrix of right singular vectors, represent the optimal "precoding" vectors for Tx
 [U, D, V] = svd(H);
 
+sv = diag(D);
+fprintf('Singular values: ');
+fprintf('%.4f  ', sv);
+fprintf('\nCondition: %.1f\n', sv(1)/sv(end));
+fprintf('Power ratio sv1/sv2: %.1f dB\n', 20*log10(sv(1)/sv(2)));
+
+
 weightsTx = V(:,1:nLayers); % Calc transmitter weights (: = all rows, 1 upto nLayers columns)
 
 

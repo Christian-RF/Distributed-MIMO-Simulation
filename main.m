@@ -66,7 +66,7 @@ weightVecRx = ones(numElementsRx, 1) / sqrt(numElementsRx);
 % [patTx, az, el] = pattern(txArray, fc, -180:180, -90:90, ...
 %     Type = 'powerdb',...
 %     Normalize = false);
-% 
+%
 % % Get Rx pattern
 % [patRx, az, el] = pattern(rxArray, fc, -180:180, -90:90, ...
 %     Type = 'powerdb',...
@@ -93,8 +93,8 @@ txPower = 10^((allocatedTxPower - 30) / 10); % Transmitted Power in W because tx
 
 %% Setup transmitters and receiver
 % lat, lon, azimuth
-txCoords = [txLatWiwi, txLonWiwi, 90;    
-            txLatAcademica, txLonAcademica, -90];
+txCoords = [txLatWiwi, txLonWiwi, 90;
+    txLatAcademica, txLonAcademica, -90];
 
 %% Set DMIMO with 1 -> both base stations otherwise just SuperC as reference
 numBS = 2;
@@ -209,18 +209,18 @@ plotSitePatterns(tx, weightsPerBS, fc);
 % if enableDMIMO == 1
 %     tx(1).Antenna = clone(channelDataBeforeBF.BS1.Channel.TransmitAntennaArray);
 %     tx(2).Antenna = clone(channelDataBeforeBF.BS2.Channel.TransmitAntennaArray);
-% 
+%
 %     %%  Dein kombinierter Taper ist für Empfangsleistungs‑Patterns
 %     % Use combined weights for exposure calculation
 %     combinedWeightsSuperC = sum(weightsPerBS{1}(:, 1:numLayers), 2);
 %     combinedWeightsAcademica = sum(weightsPerBS{2}(:, 1:numLayers), 2);
-% 
+%
 %     % Jeder Singulärvektor hat bereits ||w_i||_2 = 1 und ist normiert. Aber ||combinedweights||_2
 %     % ist nicht mehr normiert und wäre sqrt(2). Aber aus SVD sind w_i orthogonal daher muss nochmal
 %     % normiert werden
 %     combinedWeightsSuperC = combinedWeightsSuperC / norm(combinedWeightsSuperC);
 %     combinedWeightsAcademica = combinedWeightsAcademica / norm(combinedWeightsAcademica);
-% 
+%
 %     % Taper Tx antenna array with calculated weights (beamforming/precoding)
 %     tx(1).Antenna.Taper = combinedWeightsSuperC;
 %     tx(2).Antenna.Taper = combinedWeightsAcademica;
@@ -311,8 +311,8 @@ end
 Mbps = zeros(1, numBS);
 parfor i = 1:numBS
     Mbps(i) = runPDSCH2(bsChannels{i}, numFrames, numLayers, numHARQ, ...
-                        SNR_dB(i), usedMod{i}, numRB, coderate(i)/1024, ...
-                        SCS, numRBalloc);
+        SNR_dB(i), usedMod{i}, numRB, coderate(i)/1024, ...
+        SCS, numRBalloc);
 end
 
 
@@ -324,7 +324,7 @@ end
 %     channelDataAfterBF.channelAcademica.Channel.ChannelFiltering = true;
 %     throughputMbpsSuperC = runPDSCH(channelDataAfterBF.channelSuperC.Channel, numFrames, numLayers, numHARQ, SNR_dB(1), usedMod{1}, numRB, coderate(1)/1024, SCS, weightsSuperC.', numRBalloc);
 %     throughputMbpsAcademica = runPDSCH(channelDataAfterBF.channelAcademica.Channel, numFrames, numLayers, numHARQ, SNR_dB(2), usedMod{2}, numRB, coderate(1)/1024, SCS, weightsAcademica.', numRBalloc);
-% 
+%
 % else
 %     % release(channelDataAfterBF.channelSuperC.Channel);
 %     % channelDataAfterBF.channelSuperC.Channel.ChannelFiltering = true;
@@ -362,31 +362,36 @@ rxSamplingArray = rxsite(Latitude = samplingPositions(:, 1)',...
 % [planeEfield, powerMatrix] = rxStrengthMatrix(rxSamplingArray, tx, pm, gainMap);
 powerMatrix = rxStrengthMatrix2(rxSamplingArray, tx, pm, fc, allocatedTxPower);
 
+powerMatrixPlane = NaN(gridDimension.rows, gridDimension.cols);
+powerMatrixPlane(gridDimension.validMask) = powerMatrix.incoherentPower_dBm;
 
-%% Reconstruct and Plot
-% Create a placeholder matrix filled with NaNs (Transparent)
-% Use the dimensions we saved in gridInfo
-EfieldMatrix = NaN(gridDimension.rows, gridDimension.cols);
+efieldTest = NaN(gridDimension.rows, gridDimension.cols);
+efieldTest(gridDimension.validMask) = powerMatrix.coherentEfield_dBuv;
+% %% Reconstruct and Plot
+% % Create a placeholder matrix filled with NaNs (Transparent)
+% % Use the dimensions we saved in gridInfo
+% EfieldMatrix = NaN(gridDimension.rows, gridDimension.cols);
 
-% Fill the valid spots
-% The order of 'planeEfield' matches the order of 'validMask'
-% because we never re-sorted the arrays.
-% planeEfield(:, 1) is the signal strength column.
-EfieldMatrix(gridDimension.validMask) = planeEfield(:, 1);
-
+% % Fill the valid spots
+% % The order of 'planeEfield' matches the order of 'validMask'
+% % because we never re-sorted the arrays.
+% % planeEfield(:, 1) is the signal strength column.
+% EfieldMatrix(gridDimension.validMask) = planeEfield(:, 1);
+%
 %% 3D Surface Plot
 figure('Color', 'w');
 
 % SURF: X=Lon, Y=Lat, Z=SignalStrength
 % This creates the "Mountain" effect where height = signal strength
-hSurf = surf(gridDimension.lonGrid, gridDimension.latGrid, EfieldMatrix);
-% hSurf = surf(gridDimension.lonGrid, gridDimension.latGrid, powerMatrixPlane);
+% hSurf = surf(gridDimension.lonGrid, gridDimension.latGrid, EfieldMatrix);
+hSurf = surf(gridDimension.lonGrid, gridDimension.latGrid, powerMatrixPlane);
+hSurf = surf(gridDimension.lonGrid, gridDimension.latGrid, efieldTest);
 
 set(hSurf, 'EdgeColor', 'none'); % Remove black grid lines
 shading interp; % Smooth out the colors
 colormap('jet'); % Rainbow colors
 colorbar;
-title('E-Field Strength Surface');
+% title('E-Field Strength Surface');
 
 
 

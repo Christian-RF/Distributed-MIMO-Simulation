@@ -1,31 +1,28 @@
-function [throughputMbps] = runPDSCH2(channelObj, numFrames, numLayer, numHARQ, SNRdB, usedMod, numRB, coderate, SCS, numRBalloc)
+function [throughputMbps] = runPDSCH_DMIMO(channelObjs, numFrames, numLayer, numHARQ, SNRdB, usedMod, numRB, coderate, SCS, numRBalloc)
 %%RUNPDSCH calculates download speed
 % based on https://de.mathworks.com/help/5g/ug/nr-pdsch-throughput.html
 % Most of the settings are standard and taken directly from the example in
 % the link
 tic
-release(channelObj) % Enables configuration of nrCDLchannel system object
+numBS = numel(channelObjs);
+numElementsPerBS = zeros(1, numBS);
 
-channelObj.ChannelResponseOutput = 'ofdm-response'; % Enables Rx channel estimation aligned to OFDM symbols
+% Release and configure all channels
+for i = 1:numBS
+    release(channelObjs{i});
+    channelObjs{i}.ChannelResponseOutput = 'ofdm-response'; % Enables Rx channel estimation aligned to OFDM symbols
+    channelObjs{i}.ChannelFiltering = true;
+    numElementsPerBS(i) = prod(channelObjs{i}.TransmitAntennaArray.Size);
+end
 
 % Dont give additional diagnostics?
 DisplayDiagnostics = true; % true/false
 DisplaySimulationInformation = true;
 
-% Try GPU acceleration
-% UseGPU = "on";
-
 %% Define OFDM parameter and resources / Carrier and PDSCH Configuration
-% Instead of prod(channelObj.TransmitAntennaArray.Size) takes polarization
-% into account
 
-% Calculate the number of spatial positions (geometry)
-% Calculate the number of polarization (based on your ElementSet)
-numPol = numel(channelObj.TransmitAntennaArray.ElementSet);
-
-% Calculate total Transmit Antenna Ports (Logic Ports)
-NumTxAnts = prod(channelObj.TransmitAntennaArray.Size) * numPol; % This will yield 128
-NumRxAnts = prod(channelObj.ReceiveAntennaArray.Size) * numPol; % 8
+NumTxAntsTotal = sum(numElementsPerBS);  % 64+64 = 128
+NumRxAnts = prod(channelObjs{1}.ReceiveAntennaArray.Size);  % 4
 
 % Set waveform type
 carrier = nrCarrierConfig; % Creates 5G NR carrier configuration object
@@ -52,8 +49,6 @@ pdsch.VRBBundleSize = 4;
 
 % Define the number of transmission layers to be used
 pdsch.NumLayers = numLayer; % Number of PDSCH transmission layers
-
-
 
 % Set used modulation and coderate based on SNR and MCS index
 % pdsch.Modulation = usedMod;
@@ -114,11 +109,23 @@ DataType = 'single';
 waveformInfo = nrOFDMInfo(carrier);
 
 % Get channel information and max channel delay
-chInfo = info(channelObj);
-maxChDelay = chInfo.MaximumChannelDelay;
+maxChDelay = 0;
+for i = 1:numBS
+    chInfo = info(channelObjs{i});
+    maxChDelay = max(maxChDelay, chInfo.MaximumChannelDelay);
+end
 
 
-estChannelGridAnts = getInitialChannelEstimate(carrier, channelObj, DataType, maxChDelay);
+%% Initial channel estimate — concatenate per-BS estimates
+estChannelGridList = cell(1, numBS);
+for i = 1:numBS
+    estChannelGridList{i} = getInitialChannelEstimate(carrier, channelObjs{i}, 'single', maxChDelay);
+end
+
+% Concatenate along Tx dimension → [Nsc, Nsym, NRx, NTxTotal]
+estChannelGridAnts = cat(4, estChannelGridList{:});
+
+% Joint SVD precoding across all BSs
 weightsTx = hSVDPrecoders(carrier, pdsch, estChannelGridAnts, pdschExtension.PRGBundleSize);
 
 
@@ -175,7 +182,7 @@ harqEntity = HARQEntity(harqSequence ,rvSeq, pdsch.NumCodewords);
 
 % Reset the channel so that each SNR point will experience the same
 % channel realization
-reset(channelObj);
+for i = 1:numBS, reset(channelObjs{i}); end
 
 % Total number of slots in the simulation period
 NSlots = numFrames * carrier.SlotsPerFrame;
@@ -240,7 +247,7 @@ for nslot = 0:NSlots-1
         pdschIndicesInfo.G, harqEntity.RedundancyVersion, harqEntity.HARQProcessID);
 
     % Create a resource grid like the prototype array for a slot
-    pdschGrid = nrResourceGrid(carrier, NumTxAnts, OutputDataType = DataType);
+    pdschGrid = nrResourceGrid(carrier, NumTxAntsTotal, OutputDataType = DataType);
 
     % PDSCH modulation and precoding
     pdschSymbols = nrPDSCH(carrier, pdsch, codedTrBlocks);
@@ -263,6 +270,23 @@ for nslot = 0:NSlots-1
 
     % OFDM modulation
     txWaveform = nrOFDMModulate(carrier, pdschGrid);
+    txWaveform = [txWaveform; zeros(maxChDelay, size(txWaveform, 2))];
+    % Split Tx waveform per BS and pass through respective channels
+    rxWaveform = zeros(size(txWaveform, 1) + maxChDelay, NumRxAnts);
+    antIdx = 0;
+    for i = 1:numBS
+        cols = antIdx + 1 : antIdx + numElementsPerBS(i);
+        txWaveform_i = txWaveform(:, cols);
+
+        % Each channel: [Nsamples × NTx_i] → [Nsamples × NRx]
+        [rxWaveform_i, ~, ~] = channelObjs{i}(txWaveform_i, carrier);
+
+        % Superposition at the receiver
+        rxWaveform(1:size(rxWaveform_i, 1), :) = ...
+            rxWaveform(1:size(rxWaveform_i, 1), :) + rxWaveform_i;
+
+        antIdx = antIdx + numElementsPerBS(i);
+    end
 
     % Pass data through channel model. Append zeros at the end of the
     % transmitted waveform to flush channel content. These zeros take
@@ -271,10 +295,10 @@ for nslot = 0:NSlots-1
     % change depending on the sampling rate, delay profile, and delay
     % spread. The channel model also returns the OFDM channel response
     % and timing offset for the specified carrier
-    txWaveform = [txWaveform; zeros(maxChDelay, size(txWaveform, 2))];
-    [rxWaveform, ofdmResponse, timingOffset] = channelObj(txWaveform, carrier);
-    % [rxWaveform, ofdmResponse, timingOffset] = channelObj(txWaveform);
-    % Add AWGN to the received time domain waveform
+    % txWaveform = [txWaveform; zeros(maxChDelay, size(txWaveform, 2))];
+    % [rxWaveform, ofdmResponse, timingOffset] = channelObjs(txWaveform, carrier);
+    % % [rxWaveform, ofdmResponse, timingOffset] = channelObj(txWaveform);
+    % % Add AWGN to the received time domain waveform
 
     % sigPower = mean(abs(rxWaveform(:)).^2);
     % %%% 2) Noise-Power = signalPower / SNR
@@ -293,13 +317,20 @@ for nslot = 0:NSlots-1
     %
     % rxWaveform = rxWaveform + noise;
 
+    % rxSig = rxWaveform(1:end-maxChDelay, :);
+    % sigPower = mean(abs(rxSig(:)).^2);
+    % 
+    % % Noise power relative to actual received signal
+    % noisePower = sigPower / SNR_linear;
+    % 
+    % % For REAL-valued noise (matching the reference example convention):
+    % noise = sqrt(noisePower) * randn(size(rxWaveform), 'like', rxWaveform);
+    % rxWaveform = rxWaveform + noise;
+
+    % Same physics-based noise as before
     rxSig = rxWaveform(1:end-maxChDelay, :);
     sigPower = mean(abs(rxSig(:)).^2);
-
-    % Noise power relative to actual received signal
-    noisePower = sigPower / SNR_linear;
-
-    % For REAL-valued noise (matching the reference example convention):
+    noisePower = sigPower / (10^(SNRdB/10));
     noise = sqrt(noisePower) * randn(size(rxWaveform), 'like', rxWaveform);
     rxWaveform = rxWaveform + noise;
 
@@ -348,7 +379,14 @@ for nslot = 0:NSlots-1
 
     % Remove precoding from estChannelGridPorts to get channel
     % estimate w.r.t. antennas
-    estChannelGridAnts = precodeChannelEstimate(carrier, estChannelGridPorts, conj(weightsTx)); % Why transpose?
+    % estChannelGridAnts = precodeChannelEstimate(carrier, estChannelGridPorts, conj(weightsTx)); % Why transpose?
+    % ===== NEW =====
+    % The practical estimation via DMRS works automatically because
+    % the precoded DMRS went through both channels and got summed.
+    % estChannelGridPorts already represents the effective joint channel.
+    % So this line stays THE SAME:
+    estChannelGridAnts = precodeChannelEstimate(carrier, estChannelGridPorts, conj(weightsTx));
+
 
     % % % % Diagnostic: check channel spatial condition
     % % % H_mid = squeeze(estChannelGridAnts(round(size(estChannelGridAnts,1)/2), 1, :, :));
@@ -433,7 +471,8 @@ for nslot = 0:NSlots-1
         fprintf('\n(%3.2f%%) NSlot=%d, %s', 100*(nslot + 1) / NSlots, nslot, procstatus);
     end
 
-    % % Get precoding matrix for next slot
+    % Get channel estimate w.r.t. all 128 antennas for next slot's precoder
+    % estChannelGridAnts is already [Nsc, Nsym, NRx, 128] after precodeChannelEstimate
     newWtx = hSVDPrecoders(carrier, pdsch, estChannelGridAnts, pdschextra.PRGBundleSize);
     weightsTx = newWtx;
 
