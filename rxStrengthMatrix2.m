@@ -192,7 +192,7 @@
 % fprintf('Power calculation complete.\n');
 % end
 
-function [powerMatrix] = rxStrengthMatrix2(rxSamplingArray, txSite, pm, fc, allocatedTxPower)
+function [powerMatrix] = rxStrengthMatrix2(viewer, rxSamplingArray, txSite, pm, fc, allocatedTxPower)
 
 N = numel(rxSamplingArray);
 lat = [rxSamplingArray.Latitude]';
@@ -200,8 +200,9 @@ lon = [rxSamplingArray.Longitude]';
 
 % Setup incremental save
 % D:\MA_Investigation of the influence of distributed MIMO on exposure in an urban environment\MATLAB Simulation\Results
+% C:\Users\chris\OneDrive - Students RWTH Aachen University\RWTH\Master Thesis\Results
 resultFolder = 'C:\Users\chris\OneDrive - Students RWTH Aachen University\RWTH\Master Thesis\Results';
-saveFile = fullfile(resultFolder, 'power_progress.mat');
+saveFile = fullfile(resultFolder, 'power_progress_1BS.mat');
 m = matfile(saveFile, 'Writable', true);
 m.incoherentPower_dBm   = -inf(N, 1);
 m.coherentPower_dBm     = -inf(N, 1);
@@ -218,7 +219,7 @@ for block = 1:blockSize:N
     rxChunk = rxSamplingArray(idxStart:idxEnd);
 
     % ---- Ray trace the WHOLE chunk OUTSIDE parfor ----
-    raysAllTxRx = raytrace(txSite, rxChunk, pm);  % {numTx × chunkSize}
+    raysAllTxRx = raytrace(txSite, rxChunk, pm, Type = "pathloss", Map=viewer);  % {numTx × chunkSize} Type = "pathloss"
 
     incPow = -inf(chunkSize, 1);
     cohPow = -inf(chunkSize, 1);

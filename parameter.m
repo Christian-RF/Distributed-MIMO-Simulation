@@ -29,24 +29,22 @@ elementParameter = { ...
     'MaximumGain', 8, ...           % GE,max (8 dBi)
     'SidelobeLevel', 30, ...        % SLAv (30 dB)
     'MaximumAttenuation', 30, ...   % A_max (30 dB)
-    'PolarizationModel', 2,...      % Model-2 is standard for TR 38.901
-    'FrequencyRange' [3.3e9 3.8e9]};% band n78 or just channel fc-bw/2 fc+bw/2       
+    'FrequencyRange' [3.3e9 3.8e9]};% band n78 or just channel fc-bw/2 fc+bw/2 
+% 'PolarizationModel', 2,...      % Model-2 is standard for TR 38.901
 
 element = phased.NRAntennaElement(elementParameter{:});
 
 
 %% Comeback later for polarization implementation
 % % % Element 1: +45 degree slant
-elPlus45 = phased.NRAntennaElement(elementParameter{:}, ...
-    'FrequencyRange', [3.3e9 3.8e9],...
-    PolarizationAngle = 45);
-
-% Element 2: -45 degree slant
-elMinus45 = phased.NRAntennaElement(elementParameter{:}, ...
-    'FrequencyRange', [3.3e9 3.8e9],...
-    PolarizationAngle = -45);
-
-
+% elPlus45 = phased.NRAntennaElement(elementParameter{:}, ...
+%     'FrequencyRange', [3.3e9 3.8e9],...
+%     PolarizationAngle = 45);
+% 
+% % Element 2: -45 degree slant
+% elMinus45 = phased.NRAntennaElement(elementParameter{:}, ...
+%     'FrequencyRange', [3.3e9 3.8e9],...
+%     PolarizationAngle = -45);
 
 % nrElement = phased.NRAntennaElement('FrequencyRange', [3.3e9 3.8e9]);
 % txArrayTest = phased.NRRectangularPanelArray(ElementSet=default);
@@ -149,8 +147,8 @@ bsHeight = 10;
 %% Rx Setup
 
 % Rx midpoint between both bs
-% rxLat = 50.7794935;
-% rxLong = 6.0777168;
+rxLat = 50.7794935;
+rxLong = 6.0777168;
 
 % Rx Netto NLOS
 % rxLat = 50.7797047;
@@ -160,8 +158,8 @@ bsHeight = 10;
 % rxLat = 50.7784224;
 % rxLong = 6.0783278;
 
-rxLat = 50.7791588; % (°) NLOS 50.7791588 LOS 50.7782852
-rxLong = 6.0781231; % (°) NLOS 6.0781231 LOS 6.0791742
+% rxLat = 50.7791588; % (°) NLOS 50.7791588 LOS 50.7782852
+% rxLong = 6.0781231; % (°) NLOS 6.0781231 LOS 6.0791742
 
 % Test channel rank 
 % rxLat = 50.7791500;
@@ -181,7 +179,7 @@ numRB = 245; % number of resource blocks for 90 MHz bandwidth, takes Guardbands 
 numSubcarrier = numRB * 12; % 2940 Subcarriers
 guardBand = 885e3; % TS 38.521-1 T5.3.3.-1 (BW*numRB*SCS*12)/2 -SCS/2
 
-numLayers = 4; % Number of data streams (layers) later upto 4?
+numLayers = 1; % Number of data streams (layers) later upto 4?
 scOffset = 0; % Subcarrier offset index -> use all subcarriers
 
 numFrames = 10; % Number of Frames/Slots  10

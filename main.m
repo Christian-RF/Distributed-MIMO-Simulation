@@ -28,7 +28,10 @@ tic % Time how long the simulation runs
 % First try to implement the Massive MIMO case as reference, DMIMO as
 % second case when the simulation runs, baisically add a second BS and
 % change H with the information of both channels
-enableDMIMO = 1;
+enableDMIMO = 0;
+%% Set DMIMO with 1 -> both base stations otherwise just SuperC as reference
+numBS = 1;
+
 
 %% Load parameter and simulation site
 % When changeing map keep coordiantes from Tx-Rx in mind and change in
@@ -44,60 +47,61 @@ parameter;
 %% Set Tx power based on allocated RBs
 
 % getNumElements usually accounts for the total sensors, unlike prod(array.Size)
-numElementsTx = getNumElements(txArray); % 128?
-numElementsRx = getNumElements(rxArray); % 4?
+numElementsTx = getNumElements(txArray); % 64 or 128 if polarization taken into account but then calcPower breaks down but layers work better
+numElementsRx = getNumElements(rxArray); % 4 or 8
 
-% Calculate Gain from pattern for power per SC
+% % Calculate Gain from pattern for power per SC
 weightVecTx = ones(numElementsTx, 1) / sqrt(numElementsTx);
 weightVecRx = ones(numElementsRx, 1) / sqrt(numElementsRx);
 
-% Get gain pattern for correct calculation of power in rays
+% [patTx, az, el] = pattern(txArray, fc, -180:180, -90:90, ...
+%     Weights = weightVecTx, ...
+%     Type = 'powerdb', ...
+%     Normalize = false);
+% Single struct, calcPower indexes gain(1) for all BSs
 [patTx, az, el] = pattern(txArray, fc, -180:180, -90:90, ...
-    Weights = weightVecTx,...
-    Type = 'powerdb',...
-    Normalize = false);
+    Type = 'directivity');
+gainTx.az   = -180:180;
+gainTx.el   = -90:90;
+gainTx.Grid = patTx;
+gainTx.Peak = max(patTx, [], 'all');
 
 % Get Rx pattern
-[patRx, az, el] = pattern(rxArray, fc, -180:180, -90:90, ...
-    Weights = weightVecRx,...
-    Type = 'powerdb',...
-    Normalize = false);
-
-% [patTx, az, el] = pattern(txArray, fc, -180:180, -90:90, ...
-%     Type = 'powerdb',...
+% [patRx, ~, ~] = pattern(rxArray, fc, -180:180, -90:90, ...
+%     Weights = weightVecRx, ...
+%     Type = 'powerdb', ...
 %     Normalize = false);
+[patRx, ~, ~] = pattern(rxArray, fc, -180:180, -90:90, ...
+    Type = 'directivity');
+gainRx.az     = -180:180;
+gainRx.el     = -90:90;
+gainRx.rxGrid = patRx;
 %
-% % Get Rx pattern
-% [patRx, az, el] = pattern(rxArray, fc, -180:180, -90:90, ...
-%     Type = 'powerdb',...
-%     Normalize = false);
-
-gain.az = -180:180; % The X-axis (must match the pattern input)
-gain.el = -90:90; % The Y-axis (must match the pattern input)
-gain.txGrid = patTx; % The 3D data matrix you just calculated
-gain.rxGrid = patRx; % Isotrop receiver
-gain.txPeak = max(patTx, [], 'all');
-gain.rxPeak = max(patRx, [], 'all'); % (dBi)
+% gain.az = -180:180; % The X-axis (must match the pattern input)
+% gain.el = -90:90; % The Y-axis (must match the pattern input)
+% gain.txGrid = patTx; % The 3D data matrix you just calculated
+% gain.rxGrid = patRx; % Isotrop receiver
+% gain.txPeak = max(patTx, [], 'all');
+% gain.rxPeak = max(patRx, [], 'all'); % (dBi)
 
 % Should EIRP also be varied on both bs?
 % Ask tam
 
 % Calculated power per subcarrier
-txPowerSC = EIRP - gain.txPeak - 10 * log10(numSubcarrier); % Total EIRP - Gain - #SC (dBm)
+txPowerSC = EIRP - gainTx.Peak - 10 * log10(numSubcarrier); % Total EIRP - Gain - #SC (dBm)
 
 % Calculated power per subcarrier (dBm)
 % + number of allocated subcarriers (dB)
 allocatedTxPower = txPowerSC + 10 * log10(numSubcarrier); % (dBm)
 txPower = 10^((allocatedTxPower - 30) / 10); % Transmitted Power in W because txsite needs linear value
 
+% Make it an array so calcPower can do gain(i) uniformly
+gainTx = repmat(gainTx, 1, numBS);
 
 %% Setup transmitters and receiver
 % lat, lon, azimuth
 txCoords = [txLatWiwi, txLonWiwi, 90;
     txLatAcademica, txLonAcademica, -90];
-
-%% Set DMIMO with 1 -> both base stations otherwise just SuperC as reference
-numBS = 2;
 
 for i = 1:numBS
     txArrayCopy = clone(txArray); % For not setting the same array changes to both
@@ -121,16 +125,16 @@ rx = rxsite( ...
 
 
 % Show in the siteviewer where Tx is and how the pattern looks like
-show(tx);
-show(rx);
-
-if numBS > 1
-    pattern(tx(1));
-    pattern(tx(2));
-else
-    pattern(tx);
-end
-pattern(rx, fc, "Size", 1);
+% % show(tx);
+% % show(rx);
+% % 
+% % if numBS > 1
+% %     pattern(tx(1));
+% %     pattern(tx(2));
+% % else
+% %     pattern(tx);
+% % end
+% % pattern(rx, fc, "Size", 1);
 
 %% Setup raytracing model
 % Set the propagation Model
@@ -163,9 +167,11 @@ end
 
 % Calculate power and efield before power is focused on rx through
 % beamforming
-exposureBeforeBF = calcPower(tx, rx, rays, fc, allocatedTxPower);
-% exposureBeforeBF2 = calcPower2(tx, rx, rays, fc, allocatedTxPower);
+% exposureBeforeBF = calcPower(tx, rx, rays, fc, allocatedTxPower);
 
+exposure_pattern =  calcPower(tx, rx, rays, fc, allocatedTxPower);
+exposure_interp2 =  calcPower3(tx, rx, rays, fc, allocatedTxPower, gainTx, gainRx);
+exposure_sigstrength = sigstrength(rx, tx, pm, Type = 'power');
 
 %% Create CDL Channel after 3GPP TR 38.901 Study on channel model for frequencies from 0.5 to 100 GHz
 [channelDataBeforeBF, hEstCollectivebeforeBF] = setupDistributedChannels(rays, tx, rx, fc, UEOrientation, numRB, SCS, numSlot);
@@ -183,15 +189,13 @@ exposureBeforeBF = calcPower(tx, rx, rays, fc, allocatedTxPower);
 % more RBs -> wideband simulation -> robustness over bw
 [weightsTxCollective, weightsRxCollective, ~] = getBeamformingWeights(hEstCollectivebeforeBF, numLayers, scOffset, numRB);
 
-
 %% Distribute weights to each BS (eq 6.3) -> slice the array and normalize per-AP power (eq 6.6)
-numElementsPerBS = getNumElements(tx(1).Antenna); % Assumes same array at each BS
 
 weightsPerBS = cell(1, numBS);
 
 for i = 1:numBS
-    startIdx = (i-1) * numElementsPerBS + 1;
-    endIdx = i * numElementsPerBS;
+    startIdx = (i-1) * numElementsTx + 1;
+    endIdx = i * numElementsTx;
     w = weightsTxCollective(startIdx:endIdx, :);
 
     % Per-BS power normalization (eq 6.6 Björnson)
@@ -237,24 +241,34 @@ for i = 1:numBS
     tx(i).Antenna = clone(channelDataBeforeBF.("BS"+i).Channel.TransmitAntennaArray);
     combinedW = sum(weightsPerBS{i}(:, 1:numLayers), 2);
     tx(i).Antenna.Taper = combinedW / norm(combinedW);
+
+    % For faster gain calculation
+    [patTxBF_i, az, el] = pattern(tx(i).Antenna, fc, -180:180, -90:90, ...
+        Type = 'directivity');
+    
+    gainTxBF(i).az = -180:180;
+    gainTxBF(i).el = -90:90;
+    gainTxBF(i).Grid = patTxBF_i;
+    gainTxBF(i).Peak = max(patTxBF_i, [], 'all');
 end
 
-
-% Show pattern after beamforming
-if enableDMIMO == 1
-    pattern(tx(1));
-    pattern(tx(2));
-else
-    pattern(tx);
-end
+% % % Show pattern after beamforming
+% % if enableDMIMO == 1
+% %     pattern(tx(1));
+% %     pattern(tx(2));
+% % else
+% %     pattern(tx);
+% % end
 
 
 %% Calculate Signal strength before and after beamforming
 % Do it coherent (sigstrength function) and incoherent
-exposureAfterBF =  calcPower(tx, rx, rays, fc, allocatedTxPower);
+exposureAfterBF_pattern =  calcPower(tx, rx, rays, fc, allocatedTxPower);
+exposureAfterBF_interp2 =  calcPower3(tx, rx, rays, fc, allocatedTxPower, gainTxBF, gainRx);
+exposureAfterBF_sigstrength = sigstrength(rx, tx, pm, Type = 'power');
 
 % Calculate new Channel matrix after beamforming
-[channelDataAfterBF, hEstCollectiveAfterBF] = setupDistributedChannels(rays, tx, rx, fc, UEOrientation, numRB, SCS, numSlot);
+% [channelDataAfterBF, hEstCollectiveAfterBF] = setupDistributedChannels(rays, tx, rx, fc, UEOrientation, numRB, SCS, numSlot);
 
 %% Calculate SNR and used Modulation
 % Open MCS table from 38.214-Table 5.1.3.1-2
@@ -307,13 +321,13 @@ for i = 1:numBS
     bsChannels{i} = ch;
 end
 
-% Run PDSCH simulation in parallel
-Mbps = zeros(1, numBS);
-parfor i = 1:numBS
-    Mbps(i) = runPDSCH2(bsChannels{i}, numFrames, numLayers, numHARQ, ...
-        SNR_dB(i), usedMod{i}, numRB, coderate(i)/1024, ...
-        SCS, numRBalloc);
-end
+% % Run PDSCH simulation in parallel
+% % Mbps = zeros(1, numBS);
+% % parfor i = 1:numBS
+% %     Mbps(i) = runPDSCH2(bsChannels{i}, numFrames, numLayers, numHARQ, ...
+% %         SNR_dB(i), usedMod{i}, numRB, coderate(i)/1024, ...
+% %         SCS, numRBalloc);
+% % end
 
 
 % if enableDMIMO == 1
@@ -360,7 +374,8 @@ rxSamplingArray = rxsite(Latitude = samplingPositions(:, 1)',...
 %% Calculate Efield at each samplepoint
 % For one BS at Tx through the raytraced pathmodel pm
 % [planeEfield, powerMatrix] = rxStrengthMatrix(rxSamplingArray, tx, pm, gainMap);
-powerMatrix = rxStrengthMatrix2(rxSamplingArray, tx, pm, fc, allocatedTxPower);
+% powerMatrix = rxStrengthMatrix2(viewer, rxSamplingArray, tx, pm, fc, allocatedTxPower);
+powerMatrix = rxStrengthMatrix3(viewer, rxSamplingArray, tx, pm, fc, allocatedTxPower, gainTx, gainRx);
 
 powerMatrixPlane = NaN(gridDimension.rows, gridDimension.cols);
 powerMatrixPlane(gridDimension.validMask) = powerMatrix.incoherentPower_dBm;
@@ -385,16 +400,42 @@ figure('Color', 'w');
 % This creates the "Mountain" effect where height = signal strength
 % hSurf = surf(gridDimension.lonGrid, gridDimension.latGrid, EfieldMatrix);
 hSurf = surf(gridDimension.lonGrid, gridDimension.latGrid, powerMatrixPlane);
-hSurf = surf(gridDimension.lonGrid, gridDimension.latGrid, efieldTest);
+% hSurf = surf(gridDimension.lonGrid, gridDimension.latGrid, efieldTest);
 
 set(hSurf, 'EdgeColor', 'none'); % Remove black grid lines
 shading interp; % Smooth out the colors
 colormap('jet'); % Rainbow colors
 colorbar;
+clim([-140 -40]);
 % title('E-Field Strength Surface');
 
 
+% figure('Color', 'w');
+% hold on;
+% % Building footprints
+% for i = 1:length(buildingStruct)
+%     fill(buildingStruct(i).Lon, buildingStruct(i).Lat, [0.6 0.6 0.6], ...
+%          'EdgeColor', 'k');
+% end
+% % Grid points
+% latValid = gridDimension.latGrid(gridDimension.validMask);
+% lonValid = gridDimension.lonGrid(gridDimension.validMask);
+% scatter(lonValid, latValid, 1, 'b', 'filled');
+% axis equal; grid on;
+% xlabel('Longitude'); ylabel('Latitude');
+% title(sprintf('Measurement Grid (%.1fm spacing, %d points)', gridSpacing, sum(gridDimension.validMask(:))));
 
+% hSurf = surf(gridDimension.lonGrid, gridDimension.latGrid, powerMatrixPlane);
+% set(hSurf, 'EdgeColor', 'none');
+% shading interp; colormap('jet');
+% hold on;
+% 
+% % Overlay actual building polygons — always smooth
+% for i = 1:length(buildingStruct)
+%     fill3(buildingStruct(i).Lon, buildingStruct(i).Lat, ...
+%           max(powerMatrixPlane(:)) * ones(size(buildingStruct(i).Lat)), ...
+%           [0.4 0.4 0.4], 'EdgeColor', 'k', 'FaceAlpha', 0.9);
+% end
 
 
 

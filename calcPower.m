@@ -163,10 +163,10 @@ for i = 1:numel(rays)
 
     for j = 1:numRays
         gainTx_dBi(j) = pattern(tx(i).Antenna, fc, azTxLocal(j), elTxLocal(j));
-        %gainRx_dBi(j) = pattern(rx.Antenna, fc, azRxLocal(j), elRxLocal(j));
+
         % Rx antenna: handle isotropic (string) vs actual antenna object
         if isstring(rx.Antenna) || ischar(rx.Antenna)
-            gainRx_dBi(j) = 0;  % isotropic = 0 dBi everywhere
+            gainRx_dBi(j) = 0;  % isotropic = 0 dBi everywhere for sampling exposure map
         else
             gainRx_dBi(j) = pattern(rx.Antenna, fc, azRxLocal(j), elRxLocal(j));
         end
