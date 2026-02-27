@@ -28,17 +28,19 @@ tic % Time how long the simulation runs
 % First try to implement the Massive MIMO case as reference, DMIMO as
 % second case when the simulation runs, baisically add a second BS and
 % change H with the information of both channels
-enableDMIMO = 0;
+% enableDMIMO = 0;
 %% Set DMIMO with 1 -> both base stations otherwise just SuperC as reference
-numBS = 1;
+% Reference single MIMO:  numBS = 1
+% Distributed MIMO:       numBS = 2
+numBS = 2;
 
 
 %% Load parameter and simulation site
 % When changeing map keep coordiantes from Tx-Rx in mind and change in
 % parameter
 fprintf('Loading Simulation Parameters, setting up Tx and Rx... \n');
-osmFile = "Aachen_Wüllnerstraße.osm"; % Aachen_Wüllnerstraße.osm BauIng_Königshügel.osm AachenCity.osm
-viewer = siteviewer(Buildings="Aachen_Wüllnerstraße.osm",Basemap="openstreetmap"); % Aachen_Wüllnerstraße.osm  BauIng_Königshügel.osm Weissenberg.osm
+osmFile = "Aachen_Wüllnerstraße.osm"; % Aachen_Wüllnerstraße.osm SuperC_small for testing.osm BauIng_Königshügel.osm AachenCity.osm
+viewer = siteviewer(Buildings = osmFile, Basemap = "openstreetmap"); % Aachen_Wüllnerstraße.osm  BauIng_Königshügel.osm Weissenberg.osm
 
 
 %% Load Antenna and 5G parameters
@@ -87,13 +89,32 @@ gainRx.rxGrid = patRx;
 % Should EIRP also be varied on both bs?
 % Ask tam
 
+%% RB Allocation per BS
+% Define the split, change each run, give both basestation the same amount
+% True DMIMO: numRB_perBS = [245, 245] == Reference: numRB_perBS = [245, 0]
+% 3/4 / 3/4: numRB_perBS = [184, 184]
+% 1/2 / 1/2: numRB_perBS = [123, 123]
+% 1/3 / 1/3: numRB_perBS = [82, 82]
+% 1/4 / 1/4: numRB_perBS = [62, 62]
+% 1/8 / 1/8: numRB_perBS = [31, 31]
+numRB_perBS = [245, 245];
+
 % Calculated power per subcarrier
 txPowerSC = EIRP - gainTx.Peak - 10 * log10(numSubcarrier); % Total EIRP - Gain - #SC (dBm)
 
-% Calculated power per subcarrier (dBm)
-% + number of allocated subcarriers (dB)
-allocatedTxPower = txPowerSC + 10 * log10(numSubcarrier); % (dBm)
-txPower = 10^((allocatedTxPower - 30) / 10); % Transmitted Power in W because txsite needs linear value
+% % Calculated power per subcarrier (dBm)
+% % + number of allocated subcarriers (dB)
+% allocatedTxPower = txPowerSC + 10 * log10(numSubcarrier); % (dBm)
+% txPower = 10^((allocatedTxPower - 30) / 10); % Transmitted Power in W because txsite needs linear value
+
+for i = 1:numBS
+    if numRB_perBS(i) > 0
+        numSC_i = numRB_perBS(i) * 12;
+        allocatedTxPower(i) = txPowerSC + 10 * log10(numSC_i); % dBm
+        txPower(i) = 10^((allocatedTxPower(i) - 30) / 10);     % Watts
+    end
+end
+
 
 % Make it an array so calcPower can do gain(i) uniformly
 gainTx = repmat(gainTx, 1, numBS);
@@ -112,7 +133,7 @@ for i = 1:numBS
         'AntennaAngle', [txCoords(i,3); 0], ...
         'AntennaHeight', bsHeight, ...
         'TransmitterFrequency', fc, ...
-        'TransmitterPower', txPower);
+        'TransmitterPower', txPower(i));
 end
 
 % Specify where the first UE is located
@@ -127,7 +148,7 @@ rx = rxsite( ...
 % Show in the siteviewer where Tx is and how the pattern looks like
 % % show(tx);
 % % show(rx);
-% % 
+% %
 % % if numBS > 1
 % %     pattern(tx(1));
 % %     pattern(tx(2));
@@ -152,7 +173,7 @@ rays = raytrace(tx, rx, pm, Type = "pathloss", ColorLimits = [45 180]);
 % Plot all rays from both Tx
 % cellfun = cell function -> OutputArray = cellfun(@FunctionName, MyCellArray);
 % perform given function to each cell (like a for loop)
-cellfun(@plot, rays);
+% cellfun(@plot, rays);
 
 % Calculate free space path loss
 % L=20log10(4*pi*R/lambda)
@@ -169,9 +190,16 @@ end
 % beamforming
 % exposureBeforeBF = calcPower(tx, rx, rays, fc, allocatedTxPower);
 
-exposure_pattern =  calcPower(tx, rx, rays, fc, allocatedTxPower);
-exposure_interp2 =  calcPower3(tx, rx, rays, fc, allocatedTxPower, gainTx, gainRx);
-exposure_sigstrength = sigstrength(rx, tx, pm, Type = 'power');
+% exposure_pattern =  calcPower(tx, rx, rays, fc, allocatedTxPower);
+% exposure_sigstrength = sigstrength(rx, tx, pm, Type = 'power');
+% exposure_interp2 = calcPower3(tx, rx, rays, fc, allocatedTxPower, gainTx, gainRx);
+% exposure = calcPower3(tx, rx, rays, fc, allocatedTxPower, gainTx, gainRx);
+% exposure_interp2 = calcPower3(tx, rx, rays, fc, allocatedTxPower, gainTx, gainRx);
+exposure = calcPower4(tx, rx, rays, fc, allocatedTxPower, gainTx, gainRx);
+% for i = 1:numBS
+%     exposure(i) = calcPower3(tx(i), rx, rays(i), fc, allocatedTxPower(i), gainTx(i), gainRx);
+% end
+
 
 %% Create CDL Channel after 3GPP TR 38.901 Study on channel model for frequencies from 0.5 to 100 GHz
 [channelDataBeforeBF, hEstCollectivebeforeBF] = setupDistributedChannels(rays, tx, rx, fc, UEOrientation, numRB, SCS, numSlot);
@@ -206,8 +234,8 @@ for i = 1:numBS
 end
 
 
-% Plot all beams from both transmitters
-plotSitePatterns(tx, weightsPerBS, fc);
+% % % % % Plot all beams from both transmitters
+% % % % plotSitePatterns(tx, weightsPerBS, fc);
 
 % % Do 1 layer (RANK1) or 4 layers (RANK4)
 % if enableDMIMO == 1
@@ -245,7 +273,7 @@ for i = 1:numBS
     % For faster gain calculation
     [patTxBF_i, az, el] = pattern(tx(i).Antenna, fc, -180:180, -90:90, ...
         Type = 'directivity');
-    
+
     gainTxBF(i).az = -180:180;
     gainTxBF(i).el = -90:90;
     gainTxBF(i).Grid = patTxBF_i;
@@ -253,19 +281,46 @@ for i = 1:numBS
 end
 
 % % % Show pattern after beamforming
-% % if enableDMIMO == 1
+% % if numBS == 2
 % %     pattern(tx(1));
 % %     pattern(tx(2));
 % % else
 % %     pattern(tx);
 % % end
 
+% dynRange = 40; % dynamic range to plot pattern similar to pattern()
+% figure('Color', 'w');
+% for i = 1:numBS
+%     [AZ, EL] = meshgrid(deg2rad(gainTxBF(i).az), deg2rad(gainTxBF(i).el));
+%     pat = gainTxBF(i).Grid;
+%
+%     patClipped = max(pat, gainTxBF(i).Peak - dynRange);
+%     R = (patClipped - (gainTxBF(i).Peak - dynRange)) / dynRange;
+%
+%     X = R .* cos(EL) .* cos(AZ);
+%     Y = R .* cos(EL) .* sin(AZ);
+%     Z = R .* sin(EL);
+%
+%     subplot(1, numBS, i);
+%     surf(X, Y, Z, patClipped, 'EdgeColor', 'none');
+%     colormap(jet);
+%     caxis([gainTxBF(i).Peak - dynRange, gainTxBF(i).Peak]);
+%     colorbar;
+%     axis equal;
+%     title(sprintf('BS %d (%.1f dBi)', i, gainTxBF(i).Peak));
+% end
+
 
 %% Calculate Signal strength before and after beamforming
 % Do it coherent (sigstrength function) and incoherent
-exposureAfterBF_pattern =  calcPower(tx, rx, rays, fc, allocatedTxPower);
-exposureAfterBF_interp2 =  calcPower3(tx, rx, rays, fc, allocatedTxPower, gainTxBF, gainRx);
-exposureAfterBF_sigstrength = sigstrength(rx, tx, pm, Type = 'power');
+% exposureAfterBF_pattern =  calcPower(tx, rx, rays, fc, allocatedTxPower);
+% exposureAfterBF_sigstrength = sigstrength(rx, tx, pm, Type = 'power');
+% exposureAfterBF_interp2 =  calcPower3(tx, rx, rays, fc, allocatedTxPower, gainTxBF, gainRx);
+% exposureAfterBF =  calcPower3(tx, rx, rays, fc, allocatedTxPower, gainTxBF, gainRx);
+exposureAfterBF = calcPower4(tx, rx, rays, fc, allocatedTxPower, gainTxBF, gainRx);
+% for i = 1:numBS
+%     exposureAfterBF(i) =  calcPower3(tx(i), rx, rays(i), fc, allocatedTxPower(i), gainTxBF(i), gainRx);
+% end
 
 % Calculate new Channel matrix after beamforming
 % [channelDataAfterBF, hEstCollectiveAfterBF] = setupDistributedChannels(rays, tx, rx, fc, UEOrientation, numRB, SCS, numSlot);
@@ -275,11 +330,33 @@ exposureAfterBF_sigstrength = sigstrength(rx, tx, pm, Type = 'power');
 MCSIndexTablePDSCH;
 
 % SCS should be 30kHz here -> *1e3
-allocBW = 12 * SCS * 1e3 * numRB; % Bandwidth ~90MHz but its not - Guardbands? Isnt needed in calc SNR
+% allocBW = 12 * SCS * 1e3 * numRB; % Bandwidth ~90MHz but its not - Guardbands? Isnt needed in calc SNR
 
 % Calculate modulation Order, used Modulation, SNR, coderate and SE
-[modOrder, usedMod, SNR_dB, coderate, SE] = calcSNRModulation(exposureAfterBF, allocBW, SCS, MCSIndexTable);
+% [modOrder, usedMod, SNR_dB, coderate, SE] = calcSNRModulation(exposureAfterBF, allocBW, SCS, MCSIndexTable);
+% allocBW = 12 * SCS * 1e3 * numRB_perBS;
+% [modOrder, usedMod, SNR_dB, coderate, SE] = calcSNRModulation(exposureAfterBF_interp2, allocBW, SCS, MCSIndexTable);
 
+modOrder = zeros(1, numBS);
+usedMod = cell(1, numBS);
+SNR_Lin = zeros(1, numBS);
+SNR_dB = zeros(1, numBS);
+coderate = zeros(1, numBS);
+SE = zeros(1, numBS);
+
+for i = 1:numBS
+    allocBW_i = 12 * SCS * 1e3 * numRB_perBS(i);
+    exposure_i.incoherentPower_dBm = exposureAfterBF.incoherentPower_dBm(i);
+    [modOrder(i), usedMod{i}, SNR_dB(i), coderate(i), SE(i), mcsIdx(i)] = ...
+        calcSNRModulation(exposure_i, allocBW_i, SCS, MCSIndexTable);
+    SNR_Lin(i) = 10^(SNR_dB(i) / 10);
+end
+SNRjoint_dB = 10*log10(sum(SNR_Lin));
+
+% SNR for DMIMO?
+% SNR1_lin = 10^(SNR_dB(1) / 10);
+% SNR2_lin = 10^(SNR_dB(2) / 10);
+% SNRjoint_dB = 10*log10(SNR_lin(1) + SNR_lin(2));
 
 %% Run PDSCH simulation for data rate estimation
 % Check if this works with LOS, NLOS and moving Rx
@@ -300,7 +377,7 @@ allocBW = 12 * SCS * 1e3 * numRB; % Bandwidth ~90MHz but its not - Guardbands? I
 % Theoretical throughput for 1 layer should be around 400Mbps
 
 % Worst case -> all RB = complete bw
-numRBalloc = numRB;
+% numRBalloc = numRB;
 
 % for i = 1:numBS
 %     release(channelDataBeforeBF.("BS"+i).Channel);
@@ -321,13 +398,54 @@ for i = 1:numBS
     bsChannels{i} = ch;
 end
 
-% % Run PDSCH simulation in parallel
-% % Mbps = zeros(1, numBS);
-% % parfor i = 1:numBS
-% %     Mbps(i) = runPDSCH2(bsChannels{i}, numFrames, numLayers, numHARQ, ...
-% %         SNR_dB(i), usedMod{i}, numRB, coderate(i)/1024, ...
-% %         SCS, numRBalloc);
-% % end
+% Compute PRB allocation per BS
+prbSets = cell(1, numBS);
+
+if numBS == 2 && isequal(numRB_perBS, [numRB, numRB])
+    % True D-MIMO: both BSs use full bandwidth (coherent joint TX)
+    rbLabel = "TrueDMIMO";
+    for i = 1:numBS
+        prbSets{i} = 0:(numRB-1);
+    end
+elseif numRB_perBS(2) == 0 || numBS == 1
+    rbLabel = "Reference";
+    prbSets{1} = 0:(numRB-1);
+    % prbSets{2} stays empty
+else
+    % Split: non-overlapping frequency regions, ask Tam if this is what we
+    % want to simulate
+    rbLabel = sprintf("%d_%d", numRB_perBS(1), numRB_perBS(2));
+    prbOffset = 0;
+    for i = 1:numBS
+        if numRB_perBS(i) > 0
+            prbSets{i} = prbOffset:(prbOffset + numRB_perBS(i) - 1); % Same as in runPDSCH
+            prbOffset = prbOffset + numRB_perBS(i);
+        else
+            prbSets{i} = [];
+        end
+    end
+end
+
+% Run PDSCH simulation 
+% Simulating Dual Connectivity (incoherent) rather than Joint Transmission (DMIMO) (coherent)
+% dual connectivity would split the frequency band and serve the UE but in
+% true DMIMO the signal is the same from both Tx and would add coherently
+% at UE -> +3dB power in the best case for two Tx, check how much that
+% changes the MCS probably not even worth it for two far away BS
+% For true implementation Htotal​=[H1​,H2​] and one run of PDSCH but no
+% time/knowledge to implement this with two tx into the matlab functions
+% for 5G 
+
+
+Mbps_perBS = zeros(1, numBS);
+for i = 1:numBS
+    if ~isempty(prbSets{i})
+        Mbps_perBS(i) = runPDSCH2(bsChannels{i}, numFrames, numLayers, numHARQ, ...
+            SNR_dB(i), usedMod{i}, numRB, coderate(i)/1024, ...
+            SCS, prbSets{i});  % pass PRB set instead of numRBalloc
+    end
+end
+Mbps_total = sum(Mbps_perBS);
 
 
 % if enableDMIMO == 1
@@ -375,7 +493,8 @@ rxSamplingArray = rxsite(Latitude = samplingPositions(:, 1)',...
 % For one BS at Tx through the raytraced pathmodel pm
 % [planeEfield, powerMatrix] = rxStrengthMatrix(rxSamplingArray, tx, pm, gainMap);
 % powerMatrix = rxStrengthMatrix2(viewer, rxSamplingArray, tx, pm, fc, allocatedTxPower);
-powerMatrix = rxStrengthMatrix3(viewer, rxSamplingArray, tx, pm, fc, allocatedTxPower, gainTx, gainRx);
+% powerMatrix = rxStrengthMatrix3(viewer, rxSamplingArray, tx, pm, fc, allocatedTxPower, gainTx, gainRx);
+powerMatrix = rxStrengthMatrix3(viewer, rxSamplingArray, tx, pm, fc, allocatedTxPower, gainTxBF, gainRx);
 
 powerMatrixPlane = NaN(gridDimension.rows, gridDimension.cols);
 powerMatrixPlane(gridDimension.validMask) = powerMatrix.incoherentPower_dBm;
@@ -395,7 +514,7 @@ efieldTest(gridDimension.validMask) = powerMatrix.coherentEfield_dBuv;
 %
 %% 3D Surface Plot
 figure('Color', 'w');
-
+%
 % SURF: X=Lon, Y=Lat, Z=SignalStrength
 % This creates the "Mountain" effect where height = signal strength
 % hSurf = surf(gridDimension.lonGrid, gridDimension.latGrid, EfieldMatrix);
@@ -406,7 +525,9 @@ set(hSurf, 'EdgeColor', 'none'); % Remove black grid lines
 shading interp; % Smooth out the colors
 colormap('jet'); % Rainbow colors
 colorbar;
-clim([-140 -40]);
+
+
+% clim([-140 -40]);
 % title('E-Field Strength Surface');
 
 
@@ -425,17 +546,107 @@ clim([-140 -40]);
 % xlabel('Longitude'); ylabel('Latitude');
 % title(sprintf('Measurement Grid (%.1fm spacing, %d points)', gridSpacing, sum(gridDimension.validMask(:))));
 
+
+% figure('Color', 'w');
 % hSurf = surf(gridDimension.lonGrid, gridDimension.latGrid, powerMatrixPlane);
 % set(hSurf, 'EdgeColor', 'none');
 % shading interp; colormap('jet');
 % hold on;
-% 
+%
 % % Overlay actual building polygons — always smooth
 % for i = 1:length(buildingStruct)
 %     fill3(buildingStruct(i).Lon, buildingStruct(i).Lat, ...
-%           max(powerMatrixPlane(:)) * ones(size(buildingStruct(i).Lat)), ...
-%           [0.4 0.4 0.4], 'EdgeColor', 'k', 'FaceAlpha', 0.9);
+%         max(powerMatrixPlane(:)) * ones(size(buildingStruct(i).Lat)), ...
+%         [0.4 0.4 0.4], 'EdgeColor', 'k', 'FaceAlpha', 0.9);
 % end
+
+
+%% Safe results for later analysis
+outputDir = "C:\Users\rieger\Desktop\MA Christian\Results";
+if ~exist(outputDir, 'dir')
+    mkdir(outputDir);
+end
+
+
+% Set data name depending on settings
+timestamp = char(datetime, 'ddMMyyyy_HHmm');
+simParameters = sprintf("MP%d_", mpIdx);
+for i = 1:numBS
+    simParameters = simParameters + sprintf("BS%d_RB%d_MCS%d_%s_CR%d", ...
+        i, numRB_perBS(i), mcsIdx(i), string(usedMod{i}), coderate(i));
+    if i < numBS
+        simParameters = simParameters + "_";
+    end
+end
+
+%% 1) Save complete workspace (as requested by supervisor)
+workspaceFile = fullfile(outputDir, simParameters + "_" + timestamp + "_workspace.mat");
+save(workspaceFile, '-v7.3'); % -v7.3 support for large files
+
+%% 2) Build flat results table (one row per BS, appendable across runs)
+% Only scalar/short values — no large matrices here
+resultRows = cell(numBS, 1);
+for i = 1:numBS
+    resultRows{i} = table( ...
+        string(simParameters), mpIdx, rxLat, rxLong, i, numBS, ...
+        numRB_perBS(i), string(rbLabel), mcsIdx(i), string(usedMod{i}), coderate(i), ...
+        SNR_dB(i), SNRjoint_dB, SE(i), allocatedTxPower(i), txPower(i), ...
+        rxLOS(i), distanceTxRx(i), freeSpacePathLoss(i), ...
+        gainTxBF(i).Peak, ...
+        exposure.totalIncoherentPower_dBm, ...
+        exposure.totalCoherentPower_dBm, ...
+        exposureAfterBF.totalIncoherentPower_dBm, ...
+        exposureAfterBF.totalCoherentPower_dBm, ...
+        Mbps_perBS(i), sum(Mbps_perBS), ...
+        'VariableNames', { ...
+            'SimulationRun', 'mpIdx','rxLat','rxLong','BS','numBS', ...
+            'numRB','rbLabel','mcsIdx','modulation','coderate', ...
+            'SNR_dB','SNRjoint_dB','SE','txPower_dBm','txPower_W', ...
+            'LOS','distance_m','FSPL_dB', ...
+            'BF_peakDirectivity_dBi', ...
+            'totalExp_preBF_incoh_dBm', ...
+            'totalExp_preBF_coh_dBm', ...
+            'totalExp_postBF_incoh_dBm', ...
+            'totalExp_postBF_coh_dBm', ...
+            'Mbps_perBS','Mbps_total'});
+end
+resultsTable = vertcat(resultRows{:});
+
+% Append to master results
+masterFile = fullfile(outputDir, "masterResults.mat");
+if isfile(masterFile)
+    loaded = load(masterFile, 'allResults');
+    allResults = [loaded.allResults; resultsTable];
+else
+    allResults = resultsTable;
+end
+save(masterFile, 'allResults');
+
+% Append to master results file if it exists
+masterFile = fullfile(outputDir, "masterResults.mat");
+if isfile(masterFile)
+    loaded = load(masterFile, 'allResults');
+    allResults = [loaded.allResults; resultsTable];
+else
+    allResults = resultsTable;
+end
+save(masterFile, 'allResults');
+
+% Save Matrices
+matrixFile = fullfile(outputDir, simParameters + "_" + timestamp + "_matrices.mat");
+save(matrixFile, 'powerMatrix', 'powerMatrixPlane', 'exposure', 'exposureAfterBF');
+
+close(viewer);
+
+% % % Analysis of data
+% % load('summaryTable.mat');
+% %
+% % % Compare throughput across RB splits for MP1
+% % mp1 = resultsTable(resultsTable.mpIdx == 1, :);
+% % figure; bar(categorical(mp1.rbLabel), mp1.Mbps_total);
+% %
+% % % Exposure vs throughput scatter
+% % figure; scatter(resultsTable.postBF_incohPwr, resultsTable.Mbps_total);
 
 
 

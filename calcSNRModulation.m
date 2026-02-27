@@ -1,4 +1,4 @@
-function [modOrder, usedMod, SNR_dB, coderate, SE] = calcSNRModulation(exposureAfterBF, allocBW, SCS, MCSIndexTable)
+function [modOrder, usedMod, SNR_dB, coderate, SE, mcsIdx] = calcSNRModulation(exposureAfterBF, allocBW, SCS, MCSIndexTable)
 %%CALCSNRMODULATION calculates SNR, SE, Modulation and coderate based MCS table 
 % and the provided signal strength in exposure
 
@@ -17,7 +17,7 @@ n0_mW = n0 * 1e3; % Convert to mW for correct calculation with sigStrength
 %% Calc avarage Rx power per Subcarrier
 % Not per subcarrier anymore since incoherent power approximates power in
 % complete band
-sigStrength_mW = 10.^(exposureAfterBF.incoherentPower_dBm/10);% dBm to mW
+sigStrength_mW = 10.^([exposureAfterBF.incoherentPower_dBm]/10);% dBm to mW
 % avgSigStrength = sum(sigStrength_mW) / length(sigStrength_mW);  % Average receive Power over Subcarrier
 
 %% Calculate SNR and SE
@@ -37,6 +37,7 @@ numTx = length(SE);
 modOrder = zeros(1, numTx);
 coderate = zeros(1, numTx);
 usedMod = cell(1, numTx); % Use cell array for strings
+mcsIdx = zeros(1, numTx);
 
 for i = 1:numTx
     % Find the matching index in the MCS table for the i-th transmitter
@@ -50,6 +51,7 @@ for i = 1:numTx
     % Extract values
     modOrder(i) = MCSIndexTable.Modulation_Order(idx);
     coderate(i) = MCSIndexTable.Target_Code_Rate(idx);
+    mcsIdx(i) = idx;
     
     % Determine Modulation String
     switch modOrder(i)

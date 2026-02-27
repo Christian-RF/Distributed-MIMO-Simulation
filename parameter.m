@@ -119,10 +119,10 @@ rxArray = phased.URA([2 2], ...
     'ElementSpacing', [0.5 0.5] * lambda);
 
 %% Show Array arrangement
-figure;
-viewArray(txArray, 'ShowNormals', true, 'ShowIndex', 'All');
-figure;
-viewArray(rxArray, 'ShowNormals', true, 'ShowIndex', 'All');
+% figure;
+% viewArray(txArray, 'ShowNormals', true, 'ShowIndex', 'All');
+% figure;
+% viewArray(rxArray, 'ShowNormals', true, 'ShowIndex', 'All');
 
 %% Tx Setup
 
@@ -145,10 +145,21 @@ bsHeight = 10;
 
 
 %% Rx Setup
+%% Measurement Points
+rxPoints = [
+    50.7794935, 6.0777168;  % MP1: Midpoint between both BS
+    50.7797047, 6.0790794;  % MP2: Near Netto NLOS
+    50.7784224, 6.0783278;  % MP3: Behind SuperC
+];
+
+% Select which point to run
+mpIdx = 1;
+rxLat  = rxPoints(mpIdx, 1);
+rxLong = rxPoints(mpIdx, 2);
 
 % Rx midpoint between both bs
-rxLat = 50.7794935;
-rxLong = 6.0777168;
+% rxLat = 50.7794935;
+% rxLong = 6.0777168;
 
 % Rx Netto NLOS
 % rxLat = 50.7797047;
@@ -179,7 +190,7 @@ numRB = 245; % number of resource blocks for 90 MHz bandwidth, takes Guardbands 
 numSubcarrier = numRB * 12; % 2940 Subcarriers
 guardBand = 885e3; % TS 38.521-1 T5.3.3.-1 (BW*numRB*SCS*12)/2 -SCS/2
 
-numLayers = 1; % Number of data streams (layers) later upto 4?
+numLayers = 4; % Number of data streams (layers) later upto 4?
 scOffset = 0; % Subcarrier offset index -> use all subcarriers
 
 numFrames = 10; % Number of Frames/Slots  10

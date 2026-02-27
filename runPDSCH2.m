@@ -1,4 +1,4 @@
-function [throughputMbps] = runPDSCH2(channelObj, numFrames, numLayer, numHARQ, SNRdB, usedMod, numRB, coderate, SCS, numRBalloc)
+function [throughputMbps] = runPDSCH2(channelObj, numFrames, numLayer, numHARQ, SNRdB, usedMod, numRB, coderate, SCS, prbSet)
 %%RUNPDSCH calculates download speed
 % based on https://de.mathworks.com/help/5g/ug/nr-pdsch-throughput.html
 % Most of the settings are standard and taken directly from the example in
@@ -41,7 +41,8 @@ pdschExtension = struct(); % This structure is to hold additional simulation par
 
 %% Set allocated RBs
 % Define PDSCH time-frequency resource allocation per slot to be full grid
-pdsch.PRBSet = 0:(numRBalloc-1); % Full frequencies range, PDSCH PRB allocation
+% pdsch.PRBSet = 0:(numRBalloc-1); % Full frequencies range, PDSCH PRB allocation
+pdsch.PRBSet = prbSet; % New frequency split
 pdsch.SymbolAllocation = [0 carrier.SymbolsPerSlot]; % PDSCH uses all OFDM symbols per slot
 pdsch.MappingType = 'A'; % PDSCH mapping type ('A'(slot-wise),'B'(non slot-wise))
 

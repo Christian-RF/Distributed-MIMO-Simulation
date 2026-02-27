@@ -8,7 +8,7 @@ lon = [rxSamplingArray.Longitude]';
 % D:\MA_Investigation of the influence of distributed MIMO on exposure in an urban environment\MATLAB Simulation\Results
 % C:\Users\chris\OneDrive - Students RWTH Aachen University\RWTH\Master Thesis\Results
 resultFolder = 'D:\MA_Investigation of the influence of distributed MIMO on exposure in an urban environment\MATLAB Simulation\Results';
-saveFile = fullfile(resultFolder, 'power_progress_1BS_fullRB_layer1_MP1.mat');
+saveFile = fullfile(resultFolder, 'power_progress_2BS_fullRB_layer1_MP1.mat');
 m = matfile(saveFile, 'Writable', true);
 m.incoherentPower_dBm = -inf(N, 1);
 m.coherentPower_dBm = -inf(N, 1);

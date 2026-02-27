@@ -172,7 +172,7 @@ for i = 1:numel(rays)
         end
     end
 
-    powerTx_dBm = allocatedTxPower;
+    powerTx_dBm = allocatedTxPower(i);
     pathLoss = [rays{i}.PathLoss];
     phase = [rays{i}.PhaseShift];
 

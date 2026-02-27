@@ -16,7 +16,6 @@ MCSIndexTable.Modulation(6:11) = '16QAM'; % 16 QAM
 MCSIndexTable.Modulation(12:20) = '64QAM'; % 64 QAM
 MCSIndexTable.Modulation(21:28) = '256QAM'; % 256 QAM
 
-
 MCSIndexTable.Target_Code_Rate(1) = 120;
 MCSIndexTable.Target_Code_Rate(2) = 193;
 MCSIndexTable.Target_Code_Rate(3) = 308;
