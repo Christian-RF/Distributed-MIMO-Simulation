@@ -23,6 +23,10 @@ m.incoherentPowerIso_dBm = -inf(N, numBS);
 m.coherentEfield_dBuv    = -inf(N, numBS);
 m.incoherentEfield_dBuv  = -inf(N, numBS);
 
+m.phasorSum_perBS    = complex(zeros(N, numBS)); % complex, so zeros not -inf
+m.phasorSumIso_perBS = complex(zeros(N, numBS));
+
+
 blockSize = 500;
 fprintf('Starting power calculation for %d points...\n', N);
 totalBlocks = ceil(N / blockSize);
@@ -45,19 +49,23 @@ for block = 1:blockSize:N
     rxChunk = rxSamplingArray(idxStart:idxEnd);
     raysAllTxRx = raytrace(txSite, rxChunk, pm, Type="pathloss", Map=viewer);
 
-    % Chunk arrays — totals
+    % Preallocate Chunk arrays 
     tot_incPow = -inf(chunkSize, 1);
     tot_cohPow = -inf(chunkSize, 1);
     tot_incEf  = -inf(chunkSize, 1);
     tot_cohEf  = -inf(chunkSize, 1);
 
-    % Chunk arrays — per BS
+    % PreallocateChunk arrays per BS
     bs_cohPow    = -inf(chunkSize, numBS);
     bs_incPow    = -inf(chunkSize, numBS);
     bs_cohPowIso = -inf(chunkSize, numBS);
     bs_incPowIso = -inf(chunkSize, numBS);
     bs_cohEf     = -inf(chunkSize, numBS);
     bs_incEf     = -inf(chunkSize, numBS);
+
+    % Preallocate phasors for scaling
+    bs_phasorSum    = complex(zeros(chunkSize, numBS));
+    bs_phasorSumIso = complex(zeros(chunkSize, numBS));
 
     for j = 1:chunkSize
         raysForRx = raysAllTxRx(:, j);
@@ -94,6 +102,8 @@ for block = 1:blockSize:N
             bs_incPowIso(j, bsIdx(b)) = exp.incoherentPowerIso_dBm(b);
             bs_cohEf(j, bsIdx(b))     = exp.coherentEfield_dBuv(b);
             bs_incEf(j, bsIdx(b))     = exp.incoherentEfield_dBuv(b);
+            bs_phasorSum(j, bsIdx(b))    = exp.phasorSum_perBS(b);
+            bs_phasorSumIso(j, bsIdx(b)) = exp.phasorSumIso_perBS(b);
         end
     end
 
@@ -109,6 +119,9 @@ for block = 1:blockSize:N
     m.incoherentPowerIso_dBm(idxStart:idxEnd, 1:numBS) = bs_incPowIso;
     m.coherentEfield_dBuv(idxStart:idxEnd, 1:numBS)    = bs_cohEf;
     m.incoherentEfield_dBuv(idxStart:idxEnd, 1:numBS)  = bs_incEf;
+
+    m.phasorSum_perBS(idxStart:idxEnd, 1:numBS)    = bs_phasorSum;
+    m.phasorSumIso_perBS(idxStart:idxEnd, 1:numBS) = bs_phasorSumIso;
 
     % Progress
     blockTime = toc(tBlock);
@@ -133,6 +146,9 @@ powerMatrix.coherentPowerIso_dBm   = m.coherentPowerIso_dBm;
 powerMatrix.incoherentPowerIso_dBm = m.incoherentPowerIso_dBm;
 powerMatrix.coherentEfield_dBuv    = m.coherentEfield_dBuv;
 powerMatrix.incoherentEfield_dBuv  = m.incoherentEfield_dBuv;
+
+powerMatrix.phasorSum_perBS    = m.phasorSum_perBS;
+powerMatrix.phasorSumIso_perBS = m.phasorSumIso_perBS;
 
 % Coordinates
 powerMatrix.lat = lat;

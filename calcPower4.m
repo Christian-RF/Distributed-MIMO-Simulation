@@ -9,6 +9,10 @@ exposure.coherentPowerIso_dBm = -inf(1, numBS);
 exposure.incoherentPowerIso_dBm = -inf(1, numBS);
 exposure.coherentEfield_dBuv = -inf(1, numBS);
 exposure.incoherentEfield_dBuv = -inf(1, numBS);
+
+exposure.phasorSum_perBS    = zeros(1, numBS);   % with Rx gain
+exposure.phasorSumIso_perBS = zeros(1, numBS);   % isotropic (no Rx gain)
+
 allPhasors = [];
 allPhasorsIso = [];
 
@@ -67,6 +71,10 @@ for i = 1:numBS
 
     % Needed for different resource allocations
     sqrtPwr = sqrt(10^((powerTx_dBm - 30) / 10));
+
+    exposure.phasorSum_perBS(i) = sum(phasor) * sqrtPwr;
+    exposure.phasorSumIso_perBS(i) = sum(phasorIso) * sqrtPwr;
+
     allPhasors    = [allPhasors,    phasor * sqrtPwr];
     allPhasorsIso = [allPhasorsIso, phasorIso * sqrtPwr];
 

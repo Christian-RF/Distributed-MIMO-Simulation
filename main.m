@@ -95,8 +95,8 @@ weightVecRx = ones(numElementsRx, 1) / sqrt(numElementsRx);
 %     Normalize = false);
 % Single struct, calcPower indexes gain(1) for all BSs
 [patTx, az, el] = pattern(txArray, fc, -180:180, -90:90, ...
-        Type = 'directivity');
-    % 'Type', 'powerdb', 'Normalize', false);
+    Type = 'directivity');
+% 'Type', 'powerdb', 'Normalize', false);
 gainTx.az   = -180:180;
 gainTx.el   = -90:90;
 gainTx.Grid = patTx;
@@ -108,8 +108,8 @@ gainTx.Peak = max(patTx, [], 'all');
 %     Type = 'powerdb', ...
 %     Normalize = false);
 [patRx, ~, ~] = pattern(rxArray, fc, -180:180, -90:90, ...
-        Type = 'directivity');
-    % 'Type', 'powerdb', 'Normalize', false);
+    Type = 'directivity');
+% 'Type', 'powerdb', 'Normalize', false);
 gainRx.az     = -180:180;
 gainRx.el     = -90:90;
 gainRx.rxGrid = patRx;
@@ -140,7 +140,7 @@ txPowerSC = EIRP - gainTx.Peak - 10 * log10(numSubcarrier); % Total EIRP - Gain 
 % Make it an array so calcPower can do gain(i) uniformly
 gainTx = repmat(gainTx, 1, numBS);
 
-% Calc Grid just once (stays the same) befor looping through resourceblock allocation 
+% Calc Grid just once (stays the same) befor looping through resourceblock allocation
 % Raytracing, channel estimation, and beamforming are independent
 % of RB allocation too and could be moved outside the loop for efficiency.
 % Kept inside for code clarity and to avoid restructuring risk even more.
@@ -321,7 +321,7 @@ for rbIdx = 1:size(rbAllocations, 1)
         % For faster gain calculation
         [patTxBF_i, az, el] = pattern(tx(i).Antenna, fc, -180:180, -90:90, ...
             Type = 'directivity');
-            % 'Type', 'powerdb', 'Normalize', false);
+        % 'Type', 'powerdb', 'Normalize', false);
         gainTxBF(i).az = -180:180;
         gainTxBF(i).el = -90:90;
         gainTxBF(i).Grid = patTxBF_i;
@@ -341,14 +341,14 @@ for rbIdx = 1:size(rbAllocations, 1)
     % for i = 1:numBS
     %     [AZ, EL] = meshgrid(deg2rad(gainTxBF(i).az), deg2rad(gainTxBF(i).el));
     %     pat = gainTxBF(i).Grid;
-    % 
+    %
     %     patClipped = max(pat, gainTxBF(i).Peak - dynRange);
     %     R = (patClipped - (gainTxBF(i).Peak - dynRange)) / dynRange;
-    % 
+    %
     %     X = R .* cos(EL) .* cos(AZ);
     %     Y = R .* cos(EL) .* sin(AZ);
     %     Z = R .* sin(EL);
-    % 
+    %
     %     subplot(1, numBS, i);
     %     surf(X, Y, Z, patClipped, 'EdgeColor', 'none');
     %     colormap(jet);
@@ -380,10 +380,10 @@ for rbIdx = 1:size(rbAllocations, 1)
     % fprintf("Start calculation of Efield... \n")
     % % Calculate Bounds of Map (where to sample Efield)
     % [minLat, maxLat, minLon, maxLon, gridSpacing, buildingStruct] = getSimulationBounds(measureRx, osmFile, rxLat, rxLong, lambda);
-    % 
+    %
     % % Calculate Grid of sampling points for each rx
     % [samplingPositions, gridDimension] = generateMeasurementGrid(minLat, maxLat, minLon, maxLon, gridSpacing, ueHeight, buildingStruct);
-    % 
+    %
     % % Set a rxsite to each sampling point
     % % rxsite wants row vectors -> transpose
     % rxSamplingArray = rxsite(Latitude = samplingPositions(:, 1)',...
@@ -413,6 +413,11 @@ for rbIdx = 1:size(rbAllocations, 1)
     else
         powerMatrix = powerMatrix_ref;
 
+        % Preallocate scaled phasors
+        N = size(powerMatrix_ref.phasorSum_perBS, 1);
+        phasorScaled    = zeros(N, numBS);
+        phasorIsoScaled = zeros(N, numBS);
+
         % Per-BS scaling
         for i = 1:numBS
             delta_dB = allocatedTxPower(i) - allocatedTxPower_ref(i);
@@ -426,29 +431,36 @@ for rbIdx = 1:size(rbAllocations, 1)
             % E-field fields: + delta_dB / 2 (E scales as sqrt of power)
             powerMatrix.coherentEfield_dBuv(:, i)    = powerMatrix_ref.coherentEfield_dBuv(:, i) + delta_dB / 2;
             powerMatrix.incoherentEfield_dBuv(:, i)  = powerMatrix_ref.incoherentEfield_dBuv(:, i) + delta_dB / 2;
+
+            % Scale complex phasors for coherent total recomputation
+            scaleFactor = sqrt(10^((allocatedTxPower(i) - 30) / 10) / ...
+                10^((allocatedTxPower_ref(i) - 30) / 10));
+            phasorScaled(:, i)    = powerMatrix_ref.phasorSum_perBS(:, i) * scaleFactor;
+            phasorIsoScaled(:, i) = powerMatrix_ref.phasorSumIso_perBS(:, i) * scaleFactor;
         end
 
-        % Totals: recompute from scaled per-BS values (not just a simple offset)
-        % Incoherent total: sum powers in linear
-        incPow_lin = 10.^(powerMatrix.incoherentPower_dBm / 10);  % N x numBS
+        % Coherent totals (from phasor sums — exact)
+        totalPhasor    = sum(phasorScaled, 2);
+        totalPhasorIso = sum(phasorIsoScaled, 2);
+
+        powerMatrix.totalCoherentPower_dBm = 10*log10(abs(totalPhasor).^2) + 30;
+
+        Z0_term     = 10*log10(rfprop.Constants.Z0 * 4 * pi);
+        lambda_term = 20*log10(rfprop.Constants.LightSpeed / fc);
+
+        powerMatrix.totalCoherentEfield_dBuv = 20*log10(abs(totalPhasorIso)) ...
+            + Z0_term + 120 - lambda_term;
+
+        % Incoherent totals (sum of per-BS powers in linear)
+        incPow_lin = 10.^(powerMatrix.incoherentPower_dBm / 10);
         powerMatrix.totalIncoherentPower_dBm = 10*log10(sum(incPow_lin, 2));
 
-        cohPow_lin = 10.^(powerMatrix.coherentPower_dBm / 10);
-        powerMatrix.totalCoherentPower_dBm = 10*log10(sum(cohPow_lin, 2));
-
-        % Incoherent E-field total: sum powers (isotropic), then convert
         incPowIso_lin = 10.^(powerMatrix.incoherentPowerIso_dBm / 10);
         totalIncPowIso_dBm = 10*log10(sum(incPowIso_lin, 2));
-        Z0_term = 10*log10(rfprop.Constants.Z0 * 4 * pi);
-        lambda_term = 20*log10(rfprop.Constants.LightSpeed / fc);
-        powerMatrix.totalIncoherentEfield_dBuv = totalIncPowIso_dBm - 30 + Z0_term + 120 - lambda_term;
-
-        cohPowIso_lin = 10.^(powerMatrix.coherentPowerIso_dBm / 10);
-        totalCohPowIso_dBm = 10*log10(sum(cohPowIso_lin, 2));
-        powerMatrix.totalCoherentEfield_dBuv = totalCohPowIso_dBm - 30 + Z0_term + 120 - lambda_term;
+        powerMatrix.totalIncoherentEfield_dBuv = totalIncPowIso_dBm - 30 ...
+            + Z0_term + 120 - lambda_term;
     end
-
-
+    
     powerMatrixPlane = NaN(gridDimension.rows, gridDimension.cols);
     powerMatrixPlane(gridDimension.validMask) = powerMatrix.totalIncoherentPower_dBm;
 
