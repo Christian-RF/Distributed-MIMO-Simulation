@@ -9,8 +9,8 @@ release(channelObj) % Enables configuration of nrCDLchannel system object
 channelObj.ChannelResponseOutput = 'ofdm-response'; % Enables Rx channel estimation aligned to OFDM symbols
 
 % Dont give additional diagnostics?
-DisplayDiagnostics = true; % true/false
-DisplaySimulationInformation = true;
+DisplayDiagnostics = false; % true/false
+DisplaySimulationInformation = false;
 
 % Try GPU acceleration
 % UseGPU = "on";
@@ -284,9 +284,6 @@ for nslot = 0:NSlots-1
     % noiseStd = sqrt(noisePower/2);
     % %%% 4) Erzeuge das AWGN
     % noise = noiseStd * (randn(size(rxWaveform)) + 1i*randn(size(rxWaveform)));
-    %
-    %
-    %
     % %%% 5) Addiere auf das empfangene Signal
     % rxWaveform = rxWaveform + noise;
     % Why not these? Not imaginary?
@@ -294,14 +291,21 @@ for nslot = 0:NSlots-1
     %
     % rxWaveform = rxWaveform + noise;
 
+    % rxSig = rxWaveform(1:end-maxChDelay, :);
+    % sigPower = mean(abs(rxSig(:)).^2);
+    % 
+    % % Noise power relative to actual received signal
+    % noisePower = sigPower / SNR_linear;
+    % 
+    % % For REAL-valued noise (matching the reference example convention):
+    % noise = sqrt(noisePower) * randn(size(rxWaveform), 'like', rxWaveform);
+    % rxWaveform = rxWaveform + noise;
+
     rxSig = rxWaveform(1:end-maxChDelay, :);
     sigPower = mean(abs(rxSig(:)).^2);
-
-    % Noise power relative to actual received signal
     noisePower = sigPower / SNR_linear;
-
-    % For REAL-valued noise (matching the reference example convention):
-    noise = sqrt(noisePower) * randn(size(rxWaveform), 'like', rxWaveform);
+    noiseStd = sqrt(noisePower/2);
+    noise = noiseStd * (randn(size(rxWaveform)) + 1i*randn(size(rxWaveform)));
     rxWaveform = rxWaveform + noise;
 
 

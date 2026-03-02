@@ -7,8 +7,9 @@ lon = [rxSamplingArray.Longitude]';
 % Setup incremental save
 % D:\MA_Investigation of the influence of distributed MIMO on exposure in an urban environment\MATLAB Simulation\Results
 % C:\Users\chris\OneDrive - Students RWTH Aachen University\RWTH\Master Thesis\Results
-resultFolder = 'D:\MA_Investigation of the influence of distributed MIMO on exposure in an urban environment\MATLAB Simulation\Results';
-saveFile = fullfile(resultFolder, 'power_progress_2BS_fullRB_layer1_MP1.mat');
+% C:\Users\rieger\Desktop\MA Christian\Results
+resultFolder = 'C:\Users\rieger\Desktop\MA Christian\Results';
+saveFile = fullfile(resultFolder, 'power_progress.mat');
 m = matfile(saveFile, 'Writable', true);
 m.incoherentPower_dBm = -inf(N, 1);
 m.coherentPower_dBm = -inf(N, 1);
@@ -69,7 +70,7 @@ for block = 1:blockSize:N
     incEf = -inf(chunkSize, 1);
     cohEf = -inf(chunkSize, 1);
 
-    % Simple for loop — interp2 is fast, no need for parfor
+    % Simple for loop since interp2 is much faster then pattern(), no need for parfor
     for j = 1:chunkSize
         raysForRx = raysAllTxRx(:, j);
         hasRays = ~cellfun(@isempty, raysForRx);
@@ -88,7 +89,8 @@ for block = 1:blockSize:N
             allocPowerValid = allocatedTxPower(hasRays);
         end
 
-        exp = calcPower3(txValid, rxChunk(j), raysValid, fc, allocPowerValid, gainValid, gainRx);
+        % exp = calcPower3(txValid, rxChunk(j), raysValid, fc, allocPowerValid, gainValid, gainRx);
+        exp = calcPower4(txValid, rxChunk(j), raysValid, fc, allocPowerValid, gainValid, gainRx);
 
         incPow(j) = exp.totalIncoherentPower_dBm;
         cohPow(j) = exp.totalCoherentPower_dBm;

@@ -149,11 +149,11 @@ bsHeight = 10;
 rxPoints = [
     50.7794935, 6.0777168;  % MP1: Midpoint between both BS
     50.7797047, 6.0790794;  % MP2: Near Netto NLOS
-    50.7784224, 6.0783278;  % MP3: Behind SuperC
+    50.7792887, 6.0758479;  % MP3: Audimax NLOS
 ];
 
 % Select which point to run
-mpIdx = 1;
+mpIdx = 1; % MP3 NOT started at 01.03. 11:30 test with numLayers = 2, Exposure Map will stay the same, trie to just calc once and then constant power offset between resource alloaction
 rxLat  = rxPoints(mpIdx, 1);
 rxLong = rxPoints(mpIdx, 2);
 
@@ -190,10 +190,10 @@ numRB = 245; % number of resource blocks for 90 MHz bandwidth, takes Guardbands 
 numSubcarrier = numRB * 12; % 2940 Subcarriers
 guardBand = 885e3; % TS 38.521-1 T5.3.3.-1 (BW*numRB*SCS*12)/2 -SCS/2
 
-numLayers = 4; % Number of data streams (layers) later upto 4?
+numLayers = 1; % Number of data streams (layers) later upto 4?
 scOffset = 0; % Subcarrier offset index -> use all subcarriers
 
-numFrames = 10; % Number of Frames/Slots  10
+numFrames = 25; % Number of Frames/Slots  10
 numHARQ = 16; % Number of HARQ = Hybrid Automatic Repeat Request 16
 numSlot = 0;
 
